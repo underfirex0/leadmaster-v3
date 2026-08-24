@@ -1,5 +1,21 @@
 import { createServerClient } from '@supabase/ssr'
+import { createClient as createRawClient } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
+
+// Service-role client for authorization checks only (is_admin, feature
+// gates) — deliberately bypasses RLS since these are gate decisions the
+// app itself makes, not user-owned data reads that should be subject to
+// row policies. Edge-runtime compatible (supabase-js is fetch-based).
+const supabaseAuthCheck = createRawClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { autoRefreshToken: false, persistSession: false } }
+)
+
+async function checkIsAdmin(userId: string): Promise<boolean> {
+  const { data } = await supabaseAuthCheck.from('profiles').select('is_admin').eq('id', userId).single()
+  return data?.is_admin === true
+}
 
 // Feature gates: URL prefix -> feature key that must be enabled for
 // this user (checked against user_feature_access; no row = allowed).
@@ -74,8 +90,8 @@ export async function middleware(request: NextRequest) {
   if (user) {
     const feature = matchFeature(pathname)
     if (feature) {
-      const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', user.id).single()
-      if (!profile?.is_admin) {
+      const isAdmin = await checkIsAdmin(user.id)
+      if (!isAdmin) {
         const { data: access } = await supabase
           .from('user_feature_access').select('enabled')
           .eq('user_id', user.id).eq('feature', feature).maybeSingle()
@@ -93,9 +109,12 @@ export async function middleware(request: NextRequest) {
   }
 
   // Admin routes: require is_admin, independent of the feature-gate system above.
+  // Uses the service-role client here specifically, bypassing RLS — this is an
+  // authorization decision, not a data read the person should be filtered by,
+  // so it must never be affected by an RLS policy misbehaving.
   if (user && pathname.startsWith('/admin')) {
-    const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', user.id).single()
-    if (!profile?.is_admin) {
+    const isAdmin = await checkIsAdmin(user.id)
+    if (!isAdmin) {
       const url = request.nextUrl.clone()
       url.pathname = '/dashboard'
       return NextResponse.redirect(url)

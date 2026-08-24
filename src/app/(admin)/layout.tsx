@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { LayoutDashboard, Users2, AlertTriangle, UploadCloud } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 const LINKS = [
   { href: '/admin', label: 'Vue d\'ensemble', icon: LayoutDashboard },
@@ -15,9 +16,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Defense in depth: middleware already blocks non-admins from /admin,
-  // but this layout independently re-verifies rather than trusting that.
-  const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', user.id).single()
+  // Uses the service-role client here — same reasoning as middleware.ts:
+  // this is an authorization decision, deliberately bypassing RLS rather
+  // than depending on it.
+  const { data: profile } = await supabaseAdmin.from('profiles').select('is_admin').eq('id', user.id).single()
   if (!profile?.is_admin) redirect('/dashboard')
 
   return (
