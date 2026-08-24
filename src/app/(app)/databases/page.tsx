@@ -1,13 +1,14 @@
 import Link from 'next/link'
 import { Database, ArrowRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 export default async function DatabasesPage() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  const { data: queries } = await supabase
+  const { data: queries } = await supabaseAdmin
     .from('queries')
     .select('id, query_name, result_count, credits_spent, fields, created_at')
     .eq('user_id', user.id)

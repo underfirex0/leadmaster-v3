@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Navbar } from '@/components/Navbar'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient()
@@ -10,7 +11,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // that alone — it independently checks the session itself.
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('credit_balance').eq('id', user.id).single()
+  const { data: profile } = await supabaseAdmin.from('profiles').select('credit_balance').eq('id', user.id).single()
 
   return (
     <div className="min-h-screen bg-gray-50">

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Search, Users2, Wallet, Database, ArrowRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 export default async function DashboardPage() {
   const supabase = createClient()
@@ -10,10 +11,10 @@ export default async function DashboardPage() {
   // Every query here is a cheap indexed lookup by user_id — no
   // aggregate scan of companies_v2 ever happens on this page.
   const [{ data: profile }, { count: unlockCount }, { count: leadCount }, { data: recentQueries }] = await Promise.all([
-    supabase.from('profiles').select('credit_balance, full_name, free_trial_used').eq('id', user.id).single(),
-    supabase.from('company_unlocks').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
-    supabase.from('crm_leads').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
-    supabase.from('queries').select('id, query_name, result_count, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(5),
+    supabaseAdmin.from('profiles').select('credit_balance, full_name, free_trial_used').eq('id', user.id).single(),
+    supabaseAdmin.from('company_unlocks').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+    supabaseAdmin.from('crm_leads').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+    supabaseAdmin.from('queries').select('id, query_name, result_count, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(5),
   ])
 
   const stats = [

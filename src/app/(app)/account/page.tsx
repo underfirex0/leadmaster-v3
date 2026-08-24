@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { PLANS } from '@/lib/constants'
 import { ProfileForm, TeamInviteForm } from './AccountForms'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 export default async function AccountPage() {
   const supabase = createClient()
@@ -8,9 +9,9 @@ export default async function AccountPage() {
   if (!user) return null
 
   const [{ data: profile }, { data: invoices }, { data: teamMembers }] = await Promise.all([
-    supabase.from('profiles').select('full_name, company_name, email, plan_id').eq('id', user.id).single(),
-    supabase.from('invoices').select('id, amount_mad, description, status, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10),
-    supabase.from('profiles').select('id, full_name, email').eq('team_owner_id', user.id),
+    supabaseAdmin.from('profiles').select('full_name, company_name, email, plan_id').eq('id', user.id).single(),
+    supabaseAdmin.from('invoices').select('id, amount_mad, description, status, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10),
+    supabaseAdmin.from('profiles').select('id, full_name, email').eq('team_owner_id', user.id),
   ])
 
   const plan = profile?.plan_id ? (PLANS as Record<string, typeof PLANS[keyof typeof PLANS]>)[profile.plan_id] : null

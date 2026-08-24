@@ -2,6 +2,7 @@ import { Wallet, Zap } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { CREDIT_PACKS, PLANS } from '@/lib/constants'
 import { PackButton, PlanButton } from './PurchaseButtons'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 export default async function WalletPage() {
   const supabase = createClient()
@@ -9,8 +10,8 @@ export default async function WalletPage() {
   if (!user) return null
 
   const [{ data: profile }, { data: transactions }] = await Promise.all([
-    supabase.from('profiles').select('credit_balance, plan_id').eq('id', user.id).single(),
-    supabase.from('credit_transactions').select('amount, reason, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20),
+    supabaseAdmin.from('profiles').select('credit_balance, plan_id').eq('id', user.id).single(),
+    supabaseAdmin.from('credit_transactions').select('amount, reason, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20),
   ])
 
   return (

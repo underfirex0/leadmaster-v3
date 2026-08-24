@@ -26,7 +26,7 @@ export default async function DatabaseDetailPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  const { data: query } = await supabase
+  const { data: query } = await supabaseAdmin
     .from('queries')
     .select('id, query_name, result_count, credits_spent, fields, company_ids, created_at')
     .eq('id', params.id)

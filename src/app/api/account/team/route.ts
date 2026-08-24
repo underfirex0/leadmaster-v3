@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
   const { email } = await request.json()
-  const { data: owner } = await supabase.from('profiles').select('plan_id').eq('id', user.id).single()
+  const { data: owner } = await supabaseAdmin.from('profiles').select('plan_id').eq('id', user.id).single()
   const plan = owner?.plan_id ? (PLANS as Record<string, typeof PLANS[keyof typeof PLANS]>)[owner.plan_id] : null
   if (!plan || plan.maxSeats <= 1) return NextResponse.json({ error: "Votre plan n'inclut pas de sièges d'équipe" }, { status: 403 })
 

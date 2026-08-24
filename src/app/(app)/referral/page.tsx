@@ -1,13 +1,14 @@
 import { Gift } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { ReferralForm } from './ReferralForm'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 export default async function ReferralPage() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  const { data: referrals } = await supabase
+  const { data: referrals } = await supabaseAdmin
     .from('referrals')
     .select('id, referred_email, status, reward_credits, created_at')
     .eq('referrer_id', user.id)

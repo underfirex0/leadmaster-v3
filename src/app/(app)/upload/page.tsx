@@ -1,12 +1,13 @@
 import { UploadForm } from './UploadForm'
 import { createClient } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 export default async function UploadPage() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  const { data: requests } = await supabase
+  const { data: requests } = await supabaseAdmin
     .from('data_upload_requests')
     .select('id, request_description, status, created_at')
     .eq('user_id', user.id)

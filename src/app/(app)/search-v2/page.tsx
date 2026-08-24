@@ -117,7 +117,6 @@ export default function SearchWizardPage() {
           body: JSON.stringify({
             taxonomyIds: [...selectedTaxIds],
             cities: effectiveCities,
-            name: queryName,
             effectifTranches: effectiveEffectifs,
             capitalMin, capitalMax,
             fields: [...selectedFields],
@@ -173,7 +172,6 @@ export default function SearchWizardPage() {
           queryName: queryName.trim() || autoName,
           taxonomyIds: [...selectedTaxIds],
           cities: effectiveCities,
-          name: queryName,
           effectifTranches: effectiveEffectifs,
           capitalMin, capitalMax,
           fields: [...selectedFields],

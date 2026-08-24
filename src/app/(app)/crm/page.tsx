@@ -8,7 +8,7 @@ export default async function CrmPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  const { data: leads } = await supabase
+  const { data: leads } = await supabaseAdmin
     .from('crm_leads')
     .select('id, status, priority, notes, callback_date, company_id')
     .eq('user_id', user.id)

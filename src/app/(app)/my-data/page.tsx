@@ -11,7 +11,7 @@ export default async function MyDataPage({ searchParams }: { searchParams: { pag
 
   const page = Math.max(1, parseInt(searchParams.page ?? '1'))
 
-  const { data: unlocks, count } = await supabase
+  const { data: unlocks, count } = await supabaseAdmin
     .from('company_unlocks')
     .select('company_id, fields, unlocked_at', { count: 'exact' })
     .eq('user_id', user.id)

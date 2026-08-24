@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 export async function POST(request: NextRequest) {
   const supabase = createClient()
@@ -10,7 +11,7 @@ export async function POST(request: NextRequest) {
   const { email } = await request.json()
   if (!email?.includes('@')) return NextResponse.json({ error: 'Email invalide' }, { status: 400 })
 
-  const { error } = await supabase.from('referrals').insert({ referrer_id: user.id, referred_email: email, status: 'pending' })
+  const { error } = await supabaseAdmin.from('referrals').insert({ referrer_id: user.id, referred_email: email, status: 'pending' })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }
