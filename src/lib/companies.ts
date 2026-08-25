@@ -171,9 +171,39 @@ export async function fetchMatchingCompanies(
   return (data ?? []) as unknown as Record<string, unknown>[]
 }
 
-// ── Fetch just the ids matching filters, ordered by completeness —
-// used by execute to freeze the exact result set into queries.company_ids ──
-export async function fetchMatchingCompanyIds(f: CompanyFilters, limit: number): Promise<string[]> {
-  const rows = await fetchMatchingCompanies(f, 'id', limit)
-  return rows.map(r => r.id as string)
+// ── Fetch just the ids matching filters, ordered by completeness of the
+// SPECIFIC fields being unlocked for this search — not overall
+// completeness. A company that's rich in fields nobody asked for but
+// missing the ones actually purchased would be a bad "top of list"
+// result, so this scores each row only on the requested fields. ──
+export async function fetchMatchingCompanyIds(f: CompanyFilters, limit: number, fields: FieldGroupId[]): Promise<string[]> {
+  const meteredFields = fields.filter(id => id !== 'basic')
+  if (!meteredFields.length) {
+    // Nothing to differentiate on — the generic precomputed ordering is fine.
+    const rows = await fetchMatchingCompanies(f, 'id', limit)
+    return rows.map(r => r.id as string)
+  }
+
+  const scoreColumns = new Set<string>()
+  for (const fieldId of meteredFields) for (const col of FIELD_GROUPS[fieldId].columns) scoreColumns.add(col)
+
+  // Fetch a buffer beyond `limit`, coarsely pre-ordered by the generic
+  // completeness score (cheap, index-backed), then re-rank precisely in
+  // application code against only the fields this search actually pays
+  // for, and trim to the real limit. The buffer is generous enough that
+  // the coarse ordering rarely excludes a row that would score high on
+  // this narrower criterion.
+  const bufferLimit = Math.min(Math.max(limit * 3, 500), 20000)
+  const rows = await fetchMatchingCompanies(f, `id, ${[...scoreColumns].join(', ')}`, bufferLimit)
+
+  const scored = rows.map(row => {
+    let score = 0
+    for (const col of scoreColumns) {
+      const v = row[col]
+      if (v !== null && v !== undefined && v !== '') score++
+    }
+    return { id: row.id as string, score }
+  })
+  scored.sort((a, b) => b.score - a.score)
+  return scored.slice(0, limit).map(r => r.id)
 }

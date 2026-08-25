@@ -8,19 +8,22 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
-  const { companyId } = await request.json()
-  if (!companyId) return NextResponse.json({ error: 'companyId requis' }, { status: 400 })
+  const body = await request.json()
+  const companyIds: string[] = body.companyIds ?? (body.companyId ? [body.companyId] : [])
+  if (!companyIds.length) return NextResponse.json({ error: 'companyId(s) requis' }, { status: 400 })
 
-  // Verify the user actually unlocked this company before letting them
+  // Verify the user actually unlocked each company before letting them
   // add it as a lead — CRM leads shouldn't bypass the unlock system.
-  const { data: unlock } = await supabaseAdmin.from('company_unlocks').select('company_id').eq('user_id', user.id).eq('company_id', companyId).maybeSingle()
-  if (!unlock) return NextResponse.json({ error: 'Entreprise non débloquée' }, { status: 403 })
+  const { data: unlocks } = await supabaseAdmin.from('company_unlocks').select('company_id').eq('user_id', user.id).in('company_id', companyIds)
+  const unlockedIds = new Set((unlocks ?? []).map(u => u.company_id))
+  const validIds = companyIds.filter(id => unlockedIds.has(id))
+  if (!validIds.length) return NextResponse.json({ error: 'Aucune de ces entreprises n\'est débloquée' }, { status: 403 })
 
-  const { data, error } = await supabaseAdmin
+  const rows = validIds.map(companyId => ({ user_id: user.id, company_id: companyId, status: 'to_call' }))
+  const { error } = await supabaseAdmin
     .from('crm_leads')
-    .upsert({ user_id: user.id, company_id: companyId, status: 'to_call' }, { onConflict: 'user_id,company_id', ignoreDuplicates: true })
-    .select('id').single()
+    .upsert(rows, { onConflict: 'user_id,company_id', ignoreDuplicates: true })
 
-  if (error && !error.message.includes('duplicate')) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ id: data?.id })
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ added: validIds.length, skipped: companyIds.length - validIds.length })
 }

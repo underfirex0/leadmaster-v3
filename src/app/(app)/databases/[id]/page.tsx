@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { FIELD_GROUPS, type FieldGroupId } from '@/lib/constants'
 import { AddToCrmButton } from './AddToCrmButton'
+import { BulkAddToCrmButton } from './BulkAddToCrmButton'
+import { UnlockFieldsPanel } from './UnlockFieldsPanel'
 
 const PAGE_SIZE = 30
 
@@ -40,6 +42,7 @@ export default async function DatabaseDetailPage({
   const pageIds = ids.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const totalPages = Math.max(1, Math.ceil(ids.length / PAGE_SIZE))
   const fields = (query.fields as FieldGroupId[]) ?? ['basic']
+  const lockedFields = (Object.keys(FIELD_GROUPS) as FieldGroupId[]).filter(f => f !== 'basic' && !fields.includes(f))
 
   const { data: companies } = await supabaseAdmin
     .from('companies_v2')
@@ -56,9 +59,14 @@ export default async function DatabaseDetailPage({
         <ChevronLeft className="w-3.5 h-3.5" /> Mes sélections
       </Link>
       <h1 className="text-xl font-bold text-gray-900 mb-1">{query.query_name}</h1>
-      <p className="text-[13px] text-gray-400 mb-6">
+      <p className="text-[13px] text-gray-400 mb-4">
         {query.result_count.toLocaleString('fr-FR')} entreprises · {query.credits_spent} cr dépensés · {new Date(query.created_at).toLocaleDateString('fr-FR')}
       </p>
+
+      <div className="flex flex-wrap items-center gap-2 mb-6">
+        <BulkAddToCrmButton queryId={query.id} count={ids.length} />
+        <UnlockFieldsPanel queryId={query.id} lockedFields={lockedFields} />
+      </div>
 
       <div className="space-y-3">
         {orderedCompanies.map(c => (

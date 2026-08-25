@@ -156,6 +156,26 @@ export default function SearchWizardPage() {
     })
   }
 
+  function toggleSector(sector: TaxSector) {
+    const allIds = sector.domaines.flatMap(d => d.activites.map(a => a.id))
+    const allSelected = allIds.every(id => selectedTaxIds.has(id))
+    setSelectedTaxIds(prev => {
+      const next = new Set(prev)
+      for (const id of allIds) allSelected ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function toggleDomaine(domaine: TaxDomaine) {
+    const allIds = domaine.activites.map(a => a.id)
+    const allSelected = allIds.every(id => selectedTaxIds.has(id))
+    setSelectedTaxIds(prev => {
+      const next = new Set(prev)
+      for (const id of allIds) allSelected ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
   const autoName = [
     effectiveCities.length ? effectiveCities.join(', ') : 'Maroc',
     selectedTaxIds.size ? `${selectedTaxIds.size} activités` : 'Toutes activités',
@@ -273,16 +293,36 @@ export default function SearchWizardPage() {
               <div className="flex items-center justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-gray-300" /></div>
             ) : (
               <div className="max-h-72 overflow-y-auto space-y-1">
-                {filteredTree.map(s => (
+                {filteredTree.map(s => {
+                  const sectorIds = s.domaines.flatMap(d => d.activites.map(a => a.id))
+                  const sectorAllSelected = sectorIds.length > 0 && sectorIds.every(id => selectedTaxIds.has(id))
+                  const sectorSomeSelected = sectorIds.some(id => selectedTaxIds.has(id))
+                  return (
                   <div key={s.sector}>
-                    <button onClick={() => setExpandedSectors(p => { const n = new Set(p); n.has(s.sector) ? n.delete(s.sector) : n.add(s.sector); return n })}
-                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-gray-50 text-left">
-                      <span className="text-[13px] font-semibold text-gray-800">{s.sector}</span>
-                      <span className="text-[11.5px] text-gray-400">{s.totalCount.toLocaleString('fr-FR')}</span>
-                    </button>
-                    {expandedSectors.has(s.sector) && s.domaines.map(d => (
+                    <div className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-gray-50">
+                      <span className="flex items-center gap-2.5 flex-1 min-w-0">
+                        <input type="checkbox" checked={sectorAllSelected}
+                          ref={el => { if (el) el.indeterminate = !sectorAllSelected && sectorSomeSelected }}
+                          onChange={() => toggleSector(s)} onClick={e => e.stopPropagation()}
+                          className="w-4 h-4 rounded accent-brand-600 shrink-0" title="Tout sélectionner dans ce secteur" />
+                        <button onClick={() => setExpandedSectors(p => { const n = new Set(p); n.has(s.sector) ? n.delete(s.sector) : n.add(s.sector); return n })}
+                          className="text-[13px] font-semibold text-gray-800 text-left truncate">{s.sector}</button>
+                      </span>
+                      <span className="text-[11.5px] text-gray-400 shrink-0">{s.totalCount.toLocaleString('fr-FR')}</span>
+                    </div>
+                    {expandedSectors.has(s.sector) && s.domaines.map(d => {
+                      const domIds = d.activites.map(a => a.id)
+                      const domAllSelected = domIds.length > 0 && domIds.every(id => selectedTaxIds.has(id))
+                      const domSomeSelected = domIds.some(id => selectedTaxIds.has(id))
+                      return (
                       <div key={d.domaine} className="pl-4">
-                        <div className="text-[11.5px] font-semibold text-gray-400 px-3 py-1">{d.domaine}</div>
+                        <label className="flex items-center gap-2.5 px-3 py-1 cursor-pointer">
+                          <input type="checkbox" checked={domAllSelected}
+                            ref={el => { if (el) el.indeterminate = !domAllSelected && domSomeSelected }}
+                            onChange={() => toggleDomaine(d)}
+                            className="w-3.5 h-3.5 rounded accent-brand-600 shrink-0" title="Tout sélectionner dans ce domaine" />
+                          <span className="text-[11.5px] font-semibold text-gray-400">{d.domaine}</span>
+                        </label>
                         {d.activites.map(a => (
                           <label key={a.id} className="flex items-center justify-between px-3 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer">
                             <span className="flex items-center gap-2.5">
@@ -294,9 +334,11 @@ export default function SearchWizardPage() {
                           </label>
                         ))}
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>

@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { FeatureToggles } from './FeatureToggles'
+import { GrantCreditsForm } from './GrantCreditsForm'
 
 export default async function AdminUsersPage({ searchParams }: { searchParams: { q?: string } }) {
   const q = searchParams.q?.trim() ?? ''
@@ -38,6 +39,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: {
               <div className="text-[11.5px] text-gray-400">{u.email} · {u.credit_balance} cr · {u.plan_id ?? 'pay-as-you-go'}</div>
             </div>
             <FeatureToggles userId={u.id} access={accessMap.get(u.id) ?? {}} />
+            <GrantCreditsForm userId={u.id} />
           </div>
         ))}
       </div>

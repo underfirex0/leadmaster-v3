@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
       && allFields.every(f => (FREE_TRIAL_FIELDS as string[]).includes(f))
     const finalCost = freeTrialEligible ? 0 : estimatedCost
 
-    const companyIds = await fetchMatchingCompanyIds(filters, actualLimit)
+    const companyIds = await fetchMatchingCompanyIds(filters, actualLimit, allFields)
     if (!companyIds.length) return NextResponse.json({ error: 'Aucune entreprise ne correspond à ces critères' }, { status: 400 })
 
     const { data: queryId, error } = await supabaseAdmin.rpc('execute_search', {
