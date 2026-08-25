@@ -20,6 +20,11 @@ async function checkIsAdmin(userId: string): Promise<boolean> {
 // Feature gates: URL prefix -> feature key that must be enabled for
 // this user (checked against user_feature_access; no row = allowed).
 const FEATURE_GATES: { prefix: string; feature: string }[] = [
+  // Specific "spend credits" endpoints come first — they need their own
+  // gate (separate from just "search") so a team owner can let someone
+  // browse/search without letting them actually spend the shared balance.
+  { prefix: '/api/search/execute',          feature: 'unlock' },
+  { prefix: '/api/companies/unlock-fields', feature: 'unlock' },
   { prefix: '/api/upload', feature: 'data_upload' },
   { prefix: '/upload',     feature: 'data_upload' },
   { prefix: '/api/export', feature: 'export' },

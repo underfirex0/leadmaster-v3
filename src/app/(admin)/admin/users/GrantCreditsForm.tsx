@@ -1,11 +1,13 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Plus, Check } from 'lucide-react'
+import { Loader2, Plus, Minus, Check } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 export function GrantCreditsForm({ userId }: { userId: string }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
+  const [direction, setDirection] = useState<'add' | 'remove'>('add')
   const [amount, setAmount] = useState('')
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
@@ -16,7 +18,7 @@ export function GrantCreditsForm({ userId }: { userId: string }) {
     setLoading(true)
     setError(null)
     const res = await fetch(`/api/admin/users/${userId}/credits`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: Number(amount) }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: Number(amount), direction }),
     })
     const data = await res.json()
     setLoading(false)
@@ -37,6 +39,16 @@ export function GrantCreditsForm({ userId }: { userId: string }) {
 
   return (
     <form onSubmit={handleSubmit} className="flex items-center gap-1.5 shrink-0">
+      <div className="flex rounded-lg overflow-hidden border border-gray-200">
+        <button type="button" onClick={() => setDirection('add')}
+          className={cn('px-1.5 py-1', direction === 'add' ? 'bg-emerald-500 text-white' : 'bg-white text-gray-400')}>
+          <Plus className="w-3 h-3" />
+        </button>
+        <button type="button" onClick={() => setDirection('remove')}
+          className={cn('px-1.5 py-1', direction === 'remove' ? 'bg-red-500 text-white' : 'bg-white text-gray-400')}>
+          <Minus className="w-3 h-3" />
+        </button>
+      </div>
       <input type="number" min={1} required autoFocus value={amount} onChange={e => setAmount(e.target.value)} placeholder="Montant"
         className="w-20 px-2 py-1 rounded-lg border border-gray-200 text-[12px] focus:outline-none focus:ring-2 focus:ring-brand-500" />
       <button type="submit" disabled={loading}

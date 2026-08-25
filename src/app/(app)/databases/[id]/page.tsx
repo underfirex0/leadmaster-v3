@@ -4,16 +4,19 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { fetchCompaniesByIds, fetchInChunks } from '@/lib/chunked'
-import { CRM_STATUSES, type CrmStatus, type FieldGroupId } from '@/lib/constants'
+import type { FieldGroupId } from '@/lib/constants'
 import { CompanyRow, type RowCompany } from '@/components/crm/CompanyRow'
 import { FiltersBar } from '@/components/crm/FiltersBar'
 import { BulkAddToCrmButton } from './BulkAddToCrmButton'
 
 const PAGE_SIZE = 20
 
+// Pure browsing view for one search: view companies, unlock fields,
+// add to CRM. No pipeline/status management here — that lives at /crm,
+// which only ever shows companies you've actually added.
 export default async function DatabaseDetailPage({
   params, searchParams,
-}: { params: { id: string }; searchParams: { page?: string; status?: string; city?: string; sector?: string; q?: string } }) {
+}: { params: { id: string }; searchParams: { page?: string; city?: string; sector?: string; q?: string } }) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
@@ -30,11 +33,9 @@ export default async function DatabaseDetailPage({
   const orderedIds = (query.company_ids as string[]) ?? []
   const orderIndex = new Map(orderedIds.map((id, i) => [id, i]))
 
-  // Leads that already exist for this selection — some companies may
-  // not be in CRM at all yet, that's expected (adding is manual again).
   const { data: leads } = await supabaseAdmin
     .from('crm_leads')
-    .select('id, company_id, status')
+    .select('id, company_id')
     .eq('user_id', user.id)
     .eq('source_query_id', query.id)
   const leadByCompany = new Map((leads ?? []).map(l => [l.company_id, l]))
@@ -43,17 +44,12 @@ export default async function DatabaseDetailPage({
     { id: string; name: string; city: string | null; sector: string | null; activite: string }[]
   const basicMap = new Map(basicCompanies.map(c => [c.id, c]))
 
-  const statusCounts: Record<string, number> = { all: orderedIds.length }
-  for (const s of CRM_STATUSES) statusCounts[s] = (leads ?? []).filter(l => l.status === s).length
-
   const cities = [...new Set(basicCompanies.map(c => c.city).filter(Boolean))].sort() as string[]
   const sectors = [...new Set(basicCompanies.map(c => c.sector).filter(Boolean))].sort() as string[]
 
   let filteredIds = orderedIds.filter(id => {
     const c = basicMap.get(id)
     if (!c) return false
-    const lead = leadByCompany.get(id)
-    if (searchParams.status && lead?.status !== searchParams.status) return false
     if (searchParams.city && c.city !== searchParams.city) return false
     if (searchParams.sector && c.sector !== searchParams.sector) return false
     if (searchParams.q) {
@@ -82,7 +78,6 @@ export default async function DatabaseDetailPage({
 
   const buildQS = (extra: Record<string, string>) => {
     const p = new URLSearchParams()
-    if (searchParams.status) p.set('status', searchParams.status)
     if (searchParams.city) p.set('city', searchParams.city)
     if (searchParams.sector) p.set('sector', searchParams.sector)
     if (searchParams.q) p.set('q', searchParams.q)
@@ -94,7 +89,7 @@ export default async function DatabaseDetailPage({
 
   return (
     <div>
-      <Link href="/crm" className="flex items-center gap-1 text-[13px] text-gray-400 hover:text-gray-600 mb-3">
+      <Link href="/databases" className="flex items-center gap-1 text-[13px] text-gray-400 hover:text-gray-600 mb-3">
         <ChevronLeft className="w-3.5 h-3.5" /> Mes sélections
       </Link>
       <h1 className="text-xl font-bold text-gray-900 mb-1">{query.query_name}</h1>
@@ -108,7 +103,7 @@ export default async function DatabaseDetailPage({
         </div>
       )}
 
-      <FiltersBar statusCounts={statusCounts} cities={cities} sectors={sectors} />
+      <FiltersBar cities={cities} sectors={sectors} showStatusTabs={false} />
 
       <p className="text-[12px] text-gray-400 mb-2">{filteredIds.length.toLocaleString('fr-FR')} entreprises · page {page}/{totalPages}</p>
 
@@ -118,7 +113,7 @@ export default async function DatabaseDetailPage({
           if (!detailed) return null
           const lead = leadByCompany.get(companyId)
           return (
-            <CompanyRow key={companyId} leadId={lead?.id} status={lead?.status as CrmStatus | undefined}
+            <CompanyRow key={companyId} mode="browse" leadId={lead?.id}
               company={detailed} unlockedFields={unlockMap.get(companyId) ?? []} sourceQueryId={query.id} />
           )
         })}

@@ -9,7 +9,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 // via a single atomic RPC, not read-then-write from the app layer).
 // ═══════════════════════════════════════════════════════════
 
-export type CreditReason = 'unlock' | 'pack_purchase' | 'plan_renewal' | 'refund' | 'free_trial' | 'admin_grant'
+export type CreditReason = 'unlock' | 'pack_purchase' | 'plan_renewal' | 'refund' | 'free_trial' | 'admin_grant' | 'admin_deduct' | 'team_transfer'
 
 export class InsufficientCreditsError extends Error {
   constructor(public required: number, public available: number) {

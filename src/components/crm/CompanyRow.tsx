@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Phone, Globe, ShieldCheck, UserRound, Calendar, Banknote, MapPin, Lock, Loader2 } from 'lucide-react'
+import { Phone, Globe, ShieldCheck, UserRound, Calendar, Banknote, MapPin, Lock, Loader2, CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CRM_STATUSES, CRM_STATUS_LABELS, type CrmStatus, FIELD_GROUPS, type FieldGroupId } from '@/lib/constants'
 
@@ -33,8 +33,11 @@ const STATUS_DOT: Record<CrmStatus, string> = {
 }
 
 export function CompanyRow({
-  leadId, status, company, unlockedFields, sourceQueryId, onAdded,
-}: { leadId?: string; status?: CrmStatus; company: RowCompany; unlockedFields: FieldGroupId[]; sourceQueryId?: string; onAdded?: () => void }) {
+  leadId, status, company, unlockedFields, sourceQueryId, sourceQueryName, mode = 'manage', onAdded,
+}: {
+  leadId?: string; status?: CrmStatus; company: RowCompany; unlockedFields: FieldGroupId[]
+  sourceQueryId?: string; sourceQueryName?: string | null; mode?: 'browse' | 'manage'; onAdded?: () => void
+}) {
   const router = useRouter()
   const [currentStatus, setCurrentStatus] = useState(status ?? 'to_call')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -86,9 +89,12 @@ export function CompanyRow({
           <div className="w-9 h-9 rounded-full bg-brand-50 text-brand-700 flex items-center justify-center text-[12px] font-bold shrink-0">{initials}</div>
           <div className="min-w-0">
             <div className="font-bold text-[14px] text-gray-900 truncate">{company.name}</div>
-            <div className="text-[11.5px] text-gray-400 truncate">
+            <div className="text-[11.5px] text-gray-400 truncate flex items-center gap-1 flex-wrap">
               {company.city && <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" />{company.city}</span>}
               {(company.sector || company.activite) && ` · ${company.activite || company.sector}`}
+              {sourceQueryName && (
+                <span className="text-[10.5px] font-semibold text-brand-500 bg-brand-50 px-1.5 py-0.5 rounded">via {sourceQueryName}</span>
+              )}
             </div>
           </div>
         </div>
@@ -98,6 +104,10 @@ export function CompanyRow({
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-900 text-white text-[11.5px] font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50">
               {adding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Ajouter au CRM'}
             </button>
+          ) : mode === 'browse' ? (
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-[11px] font-semibold">
+              <CheckCircle2 className="w-3.5 h-3.5" /> Dans le CRM
+            </span>
           ) : (
             <>
               <button onClick={() => setMenuOpen(o => !o)}
