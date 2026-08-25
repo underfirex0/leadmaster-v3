@@ -223,7 +223,7 @@ export default function SearchWizardPage() {
   return (
     <div className="max-w-2xl mx-auto">
       {/* Step indicator */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-2">
         {STEPS.map((s, i) => {
           const Icon = s.icon
           const active = step === s.n
@@ -231,17 +231,18 @@ export default function SearchWizardPage() {
           return (
             <div key={s.n} className="flex items-center flex-1">
               <div className={cn('flex flex-col items-center gap-1', i > 0 && 'flex-1')}>
-                <div className={cn('w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold transition-colors',
+                <div className={cn('w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[12px] font-bold transition-colors shrink-0',
                   active ? 'bg-brand-600 text-white' : done ? 'bg-brand-100 text-brand-700' : 'bg-gray-100 text-gray-400')}>
-                  <Icon className="w-4 h-4" />
+                  <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
-                <span className={cn('text-[10.5px] font-semibold', active ? 'text-brand-700' : 'text-gray-400')}>{s.label}</span>
+                <span className={cn('hidden sm:block text-[10.5px] font-semibold', active ? 'text-brand-700' : 'text-gray-400')}>{s.label}</span>
               </div>
               {i < STEPS.length - 1 && <div className={cn('h-0.5 flex-1 mx-1', done ? 'bg-brand-300' : 'bg-gray-100')} />}
             </div>
           )
         })}
       </div>
+      <p className="sm:hidden text-center text-[12.5px] font-bold text-brand-700 mb-4">{STEPS[step].label}</p>
 
       <div className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-6 min-h-[380px]">
         {/* STEP 0 — Name */}

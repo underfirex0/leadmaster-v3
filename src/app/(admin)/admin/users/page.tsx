@@ -30,7 +30,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: {
 
       <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-50">
         {(users ?? []).map(u => (
-          <div key={u.id} className="px-5 py-3.5 flex items-center justify-between gap-4">
+          <div key={u.id} className="px-4 sm:px-5 py-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
             <div className="min-w-[200px]">
               <div className="text-[13.5px] font-semibold text-gray-800 flex items-center gap-2">
                 {u.full_name ?? u.email}
