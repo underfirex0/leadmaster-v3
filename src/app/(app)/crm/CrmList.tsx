@@ -1,8 +1,12 @@
 'use client'
 import { useState, useMemo } from 'react'
-import { Phone, MapPin, UserRound, ShieldCheck, Calendar, Banknote, ChevronLeft, ChevronRight, Search } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import {
+  Phone, MapPin, UserRound, ShieldCheck, Calendar, Banknote, Globe,
+  ChevronLeft, ChevronRight, Search, Lock, Unlock, Loader2, X,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { CRM_STATUSES, CRM_STATUS_LABELS, type CrmStatus, FIELD_GROUPS } from '@/lib/constants'
+import { CRM_STATUSES, CRM_STATUS_LABELS, type CrmStatus, FIELD_GROUPS, type FieldGroupId } from '@/lib/constants'
 
 export interface CrmLeadRow {
   id: string
@@ -11,10 +15,12 @@ export interface CrmLeadRow {
   notes: string | null
   callback_date: string | null
   created_at: string
-  unlockedFieldCount: number
+  sourceQueryName: string | null
+  unlockedFields: FieldGroupId[]
   company: {
     id: string; name: string; city: string | null; sector: string | null
-    phone_1: string | null; director: string | null; ice: string | null
+    phone_1: string | null; phone_2: string | null; website: string | null
+    ice: string | null; rc: string | null; director: string | null
     annee_creation: number | null; effectif_tranche: string | null
     capital_mad: number | null; address_raw: string | null
   } | null
@@ -26,6 +32,18 @@ const STATUS_DOT: Record<CrmStatus, string> = {
   converted: 'bg-brand-600', archived: 'bg-gray-400',
 }
 
+const FIELD_DISPLAY: Partial<Record<FieldGroupId, { icon: React.ElementType; render: (c: NonNullable<CrmLeadRow['company']>) => string }>> = {
+  phone: { icon: Phone, render: c => [c.phone_1, c.phone_2].filter(Boolean).join(' · ') || '—' },
+  website: { icon: Globe, render: c => c.website || '—' },
+  ice: { icon: ShieldCheck, render: c => [c.ice, c.rc].filter(Boolean).join(' · ') || '—' },
+  director: { icon: UserRound, render: c => c.director || '—' },
+  annee_creation: { icon: Calendar, render: c => c.annee_creation?.toString() || '—' },
+  effectif: { icon: UserRound, render: c => c.effectif_tranche || '—' },
+  capital: { icon: Banknote, render: c => c.capital_mad ? `${Number(c.capital_mad).toLocaleString('fr-FR')} MAD` : '—' },
+  address: { icon: MapPin, render: c => c.address_raw || '—' },
+}
+
+const ALL_METERED_FIELDS = (Object.keys(FIELD_GROUPS) as FieldGroupId[]).filter(f => f !== 'basic')
 const TOTAL_FIELDS = Object.keys(FIELD_GROUPS).length
 const PAGE_SIZE = 20
 
@@ -36,18 +54,28 @@ function relativeDays(dateStr: string): string {
   return `il y a ${days}j`
 }
 
+function pairKey(companyId: string, field: FieldGroupId) { return `${companyId}::${field}` }
+
 export function CrmList({ initialLeads }: { initialLeads: CrmLeadRow[] }) {
+  const router = useRouter()
   const [leads, setLeads] = useState(initialLeads)
   const [statusTab, setStatusTab] = useState<CrmStatus | 'all'>('all')
   const [search, setSearch] = useState('')
   const [cityFilter, setCityFilter] = useState('')
   const [sectorFilter, setSectorFilter] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('')
+  const [sourceFilter, setSourceFilter] = useState('')
   const [page, setPage] = useState(1)
   const [openStatusMenu, setOpenStatusMenu] = useState<string | null>(null)
 
+  const [selectedPairs, setSelectedPairs] = useState<Set<string>>(new Set())
+  const [estimate, setEstimate] = useState<{ cost: number } | null>(null)
+  const [unlockLoading, setUnlockLoading] = useState(false)
+  const [unlockError, setUnlockError] = useState<string | null>(null)
+
   const cities = useMemo(() => [...new Set(leads.map(l => l.company?.city).filter(Boolean))].sort() as string[], [leads])
   const sectors = useMemo(() => [...new Set(leads.map(l => l.company?.sector).filter(Boolean))].sort() as string[], [leads])
+  const sources = useMemo(() => [...new Set(leads.map(l => l.sourceQueryName).filter(Boolean))].sort() as string[], [leads])
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: leads.length }
@@ -61,6 +89,7 @@ export function CrmList({ initialLeads }: { initialLeads: CrmLeadRow[] }) {
       if (cityFilter && l.company?.city !== cityFilter) return false
       if (sectorFilter && l.company?.sector !== sectorFilter) return false
       if (priorityFilter && l.priority !== priorityFilter) return false
+      if (sourceFilter && l.sourceQueryName !== sourceFilter) return false
       if (search.trim()) {
         const q = search.trim().toLowerCase()
         const hay = `${l.company?.name ?? ''} ${l.company?.city ?? ''} ${l.company?.sector ?? ''}`.toLowerCase()
@@ -68,7 +97,7 @@ export function CrmList({ initialLeads }: { initialLeads: CrmLeadRow[] }) {
       }
       return true
     })
-  }, [leads, statusTab, cityFilter, sectorFilter, priorityFilter, search])
+  }, [leads, statusTab, cityFilter, sectorFilter, priorityFilter, sourceFilter, search])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -81,6 +110,52 @@ export function CrmList({ initialLeads }: { initialLeads: CrmLeadRow[] }) {
     })
   }
 
+  function toggleLockedField(companyId: string, field: FieldGroupId) {
+    setEstimate(null)
+    setUnlockError(null)
+    setSelectedPairs(prev => {
+      const next = new Set(prev)
+      const key = pairKey(companyId, field)
+      if (next.has(key)) next.delete(key); else next.add(key)
+      return next
+    })
+  }
+
+  function pairsPayload() {
+    return [...selectedPairs].map(k => {
+      const [companyId, field] = k.split('::')
+      return { companyId, field: field as FieldGroupId }
+    })
+  }
+
+  async function fetchEstimate() {
+    setUnlockLoading(true)
+    setUnlockError(null)
+    const res = await fetch('/api/companies/unlock-fields', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pairs: pairsPayload(), estimateOnly: true }),
+    })
+    const data = await res.json()
+    setUnlockLoading(false)
+    if (!res.ok) { setUnlockError(data.error); return }
+    setEstimate({ cost: data.cost })
+  }
+
+  async function confirmUnlock() {
+    setUnlockLoading(true)
+    setUnlockError(null)
+    const res = await fetch('/api/companies/unlock-fields', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pairs: pairsPayload() }),
+    })
+    const data = await res.json()
+    setUnlockLoading(false)
+    if (!res.ok) { setUnlockError(data.error); return }
+    setSelectedPairs(new Set())
+    setEstimate(null)
+    router.refresh()
+  }
+
   const STAT_CARDS: { key: CrmStatus; color: string }[] = [
     { key: 'to_call', color: 'text-blue-600' },
     { key: 'callback', color: 'text-orange-600' },
@@ -89,7 +164,7 @@ export function CrmList({ initialLeads }: { initialLeads: CrmLeadRow[] }) {
   ]
 
   return (
-    <div>
+    <div className="pb-24">
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
         {STAT_CARDS.map(s => (
@@ -141,6 +216,13 @@ export function CrmList({ initialLeads }: { initialLeads: CrmLeadRow[] }) {
             <option value="medium">Moyenne</option>
             <option value="low">Basse</option>
           </select>
+          {!!sources.length && (
+            <select value={sourceFilter} onChange={e => { setSourceFilter(e.target.value); setPage(1) }}
+              className="px-3 py-2 rounded-lg border border-gray-200 text-[12.5px] text-gray-600 focus:outline-none">
+              <option value="">Toutes les sélections</option>
+              {sources.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          )}
         </div>
       </div>
 
@@ -152,6 +234,8 @@ export function CrmList({ initialLeads }: { initialLeads: CrmLeadRow[] }) {
           const c = lead.company
           if (!c) return null
           const initials = c.name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
+          const unlockedSet = new Set(lead.unlockedFields)
+          const lockedFields = ALL_METERED_FIELDS.filter(f => !unlockedSet.has(f))
           return (
             <div key={lead.id} className="bg-white rounded-2xl border border-gray-100 p-4">
               <div className="flex items-start justify-between gap-3 mb-2">
@@ -159,9 +243,13 @@ export function CrmList({ initialLeads }: { initialLeads: CrmLeadRow[] }) {
                   <div className="w-9 h-9 rounded-full bg-brand-50 text-brand-700 flex items-center justify-center text-[12px] font-bold shrink-0">{initials}</div>
                   <div className="min-w-0">
                     <div className="font-bold text-[14px] text-gray-900 truncate">{c.name}</div>
-                    <div className="text-[11.5px] text-gray-400 truncate">
+                    <div className="text-[11.5px] text-gray-400 truncate flex items-center gap-1 flex-wrap">
                       {c.city && <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" />{c.city}</span>}
-                      {c.sector && ` · ${c.sector} · `}{relativeDays(lead.created_at)}
+                      {c.sector && <span>· {c.sector}</span>}
+                      <span>· {relativeDays(lead.created_at)}</span>
+                      {lead.sourceQueryName && (
+                        <span className="text-[10.5px] font-semibold text-brand-500 bg-brand-50 px-1.5 py-0.5 rounded">via {lead.sourceQueryName}</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -184,13 +272,30 @@ export function CrmList({ initialLeads }: { initialLeads: CrmLeadRow[] }) {
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-gray-500 mb-3">
-                {c.phone_1 && <span className="flex items-center gap-1"><Phone className="w-3 h-3 text-gray-300" />{c.phone_1}</span>}
-                {c.director && <span className="flex items-center gap-1"><UserRound className="w-3 h-3 text-gray-300" />{c.director}</span>}
-                {c.ice && <span className="flex items-center gap-1"><ShieldCheck className="w-3 h-3 text-gray-300" />{c.ice}</span>}
-                {c.annee_creation && <span className="flex items-center gap-1"><Calendar className="w-3 h-3 text-gray-300" />{c.annee_creation}</span>}
-                {c.effectif_tranche && <span className="flex items-center gap-1"><UserRound className="w-3 h-3 text-gray-300" />{c.effectif_tranche}</span>}
-                {c.capital_mad && <span className="flex items-center gap-1"><Banknote className="w-3 h-3 text-gray-300" />{Number(c.capital_mad).toLocaleString('fr-FR')} MAD</span>}
+              <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1 mb-3">
+                {lead.unlockedFields.filter(f => f !== 'basic').map(f => {
+                  const d = FIELD_DISPLAY[f]
+                  if (!d) return null
+                  const Icon = d.icon
+                  return (
+                    <div key={f} className="flex items-center gap-1.5 text-[12px] text-gray-600">
+                      <Icon className="w-3 h-3 text-gray-300 shrink-0" />
+                      <span className="font-medium">{d.render(c)}</span>
+                    </div>
+                  )
+                })}
+                {lockedFields.map(f => {
+                  const key = pairKey(c.id, f)
+                  const isSelected = selectedPairs.has(key)
+                  return (
+                    <button key={f} onClick={() => toggleLockedField(c.id, f)}
+                      className={cn('flex items-center gap-1.5 text-[12px] px-1.5 py-0.5 -mx-1.5 rounded-lg transition-colors text-left',
+                        isSelected ? 'bg-brand-50 text-brand-700' : 'text-gray-300 hover:bg-gray-50')}>
+                      <Lock className="w-3 h-3 shrink-0" />
+                      <span>{FIELD_GROUPS[f].label}</span>
+                    </button>
+                  )
+                })}
               </div>
 
               <div className="flex items-center gap-2">
@@ -201,7 +306,7 @@ export function CrmList({ initialLeads }: { initialLeads: CrmLeadRow[] }) {
                   </a>
                 )}
                 <span className="text-[11px] font-semibold text-gray-400 bg-gray-50 px-2.5 py-1 rounded-lg">
-                  {lead.unlockedFieldCount}/{TOTAL_FIELDS} champs
+                  {new Set(['basic', ...lead.unlockedFields]).size}/{TOTAL_FIELDS} champs
                 </span>
               </div>
             </div>
@@ -225,6 +330,32 @@ export function CrmList({ initialLeads }: { initialLeads: CrmLeadRow[] }) {
             className="flex items-center gap-1 px-3 py-2 rounded-lg text-[13px] font-semibold text-gray-500 hover:bg-white disabled:opacity-30">
             Suivant <ChevronRight className="w-4 h-4" />
           </button>
+        </div>
+      )}
+
+      {selectedPairs.size > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-20">
+          <div className="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
+            <span className="text-[13px] font-semibold text-gray-700">{selectedPairs.size} champ(s) sélectionné(s)</span>
+            {unlockError && <span className="text-[12.5px] text-red-600">{unlockError}</span>}
+            {estimate ? (
+              <>
+                <span className="text-[13px] font-bold text-brand-700 ml-auto">{estimate.cost.toLocaleString('fr-FR')} cr</span>
+                <button onClick={confirmUnlock} disabled={unlockLoading}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white rounded-xl text-[12.5px] font-semibold hover:bg-brand-700 transition-colors disabled:opacity-50">
+                  {unlockLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Unlock className="w-4 h-4" />} Confirmer et débloquer
+                </button>
+              </>
+            ) : (
+              <button onClick={fetchEstimate} disabled={unlockLoading}
+                className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white rounded-xl text-[12.5px] font-semibold hover:bg-gray-800 transition-colors ml-auto disabled:opacity-50">
+                {unlockLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Voir le coût
+              </button>
+            )}
+            <button onClick={() => { setSelectedPairs(new Set()); setEstimate(null); setUnlockError(null) }} className="text-gray-400 hover:text-gray-600">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       )}
     </div>

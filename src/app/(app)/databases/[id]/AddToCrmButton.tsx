@@ -2,13 +2,14 @@
 import { useState } from 'react'
 import { UserPlus, Check, Loader2 } from 'lucide-react'
 
-export function AddToCrmButton({ companyId }: { companyId: string }) {
+export function AddToCrmButton({ companyId, sourceQueryId }: { companyId: string; sourceQueryId?: string }) {
   const [state, setState] = useState<'idle' | 'loading' | 'done'>('idle')
 
   async function handleClick() {
     setState('loading')
     const res = await fetch('/api/crm/leads', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ companyId }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ companyId, sourceQueryId }),
     })
     setState(res.ok ? 'done' : 'idle')
   }

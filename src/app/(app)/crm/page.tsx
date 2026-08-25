@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { CrmList, type CrmLeadRow } from './CrmList'
-import type { CrmStatus } from '@/lib/constants'
+import type { CrmStatus, FieldGroupId } from '@/lib/constants'
 
 export default async function CrmPage() {
   const supabase = createClient()
@@ -10,7 +10,7 @@ export default async function CrmPage() {
 
   const { data: leads } = await supabaseAdmin
     .from('crm_leads')
-    .select('id, status, priority, notes, callback_date, created_at, company_id')
+    .select('id, status, priority, notes, callback_date, created_at, company_id, source_query_name')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
@@ -18,7 +18,7 @@ export default async function CrmPage() {
 
   const [{ data: companies }, { data: unlocks }] = await Promise.all([
     companyIds.length
-      ? supabaseAdmin.from('companies_v2').select('id, name, city, sector, phone_1, director, ice, annee_creation, effectif_tranche, capital_mad, address_raw').in('id', companyIds)
+      ? supabaseAdmin.from('companies_v2').select('id, name, city, sector, phone_1, phone_2, website, ice, rc, director, annee_creation, effectif_tranche, capital_mad, address_raw').in('id', companyIds)
       : Promise.resolve({ data: [] }),
     companyIds.length
       ? supabaseAdmin.from('company_unlocks').select('company_id, fields').eq('user_id', user.id).in('company_id', companyIds)
@@ -26,12 +26,15 @@ export default async function CrmPage() {
   ])
 
   const companyMap = new Map((companies ?? []).map(c => [c.id, c]))
-  const unlockMap = new Map((unlocks ?? []).map(u => [u.company_id, new Set(['basic', ...(u.fields as string[])]).size]))
+  // The true source of what's unlocked for THIS specific company, for
+  // THIS user — never a blanket assumption based on where it came from.
+  const unlockMap = new Map((unlocks ?? []).map(u => [u.company_id, u.fields as FieldGroupId[]]))
 
   const enrichedLeads: CrmLeadRow[] = (leads ?? []).map(l => ({
     id: l.id, status: l.status as CrmStatus, priority: l.priority, notes: l.notes,
     callback_date: l.callback_date, created_at: l.created_at,
-    unlockedFieldCount: l.company_id ? (unlockMap.get(l.company_id) ?? 1) : 1,
+    sourceQueryName: l.source_query_name,
+    unlockedFields: l.company_id ? (unlockMap.get(l.company_id) ?? []) : [],
     company: l.company_id ? (companyMap.get(l.company_id) ?? null) : null,
   }))
 

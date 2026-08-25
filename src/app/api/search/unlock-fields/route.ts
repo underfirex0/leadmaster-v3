@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
-    const { queryId, newFields } = await request.json() as { queryId: string; newFields: FieldGroupId[] }
+    const { queryId, newFields, estimateOnly } = await request.json() as { queryId: string; newFields: FieldGroupId[]; estimateOnly?: boolean }
     if (!queryId || !newFields?.length) return NextResponse.json({ error: 'Paramètres manquants' }, { status: 400 })
 
     const { data: query } = await supabaseAdmin.from('queries').select('user_id, fields, company_ids').eq('id', queryId).single()
@@ -36,6 +36,8 @@ export async function POST(request: NextRequest) {
       const availableCount = typedRows.filter(r => cols.some(c => r[c] !== null && r[c] !== '')).length
       cost += availableCount * FIELD_GROUPS[f].cost
     }
+
+    if (estimateOnly) return NextResponse.json({ cost, fieldsToAdd })
 
     const { error } = await supabaseAdmin.rpc('unlock_additional_fields', {
       p_user_id: user.id, p_query_id: queryId, p_new_fields: fieldsToAdd, p_cost: cost,
