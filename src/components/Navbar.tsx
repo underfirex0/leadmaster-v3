@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Search, Database, Users2, Wallet, User, LogOut } from 'lucide-react'
+import { LayoutDashboard, Search, Database, Users2, Wallet, User, LogOut, UploadCloud } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 
@@ -10,6 +10,7 @@ const LINKS = [
   { href: '/search-v2',  label: 'Recherche', icon: Search },
   { href: '/databases', label: 'Mes sélections', icon: Database },
   { href: '/crm',        label: 'CRM', icon: Users2 },
+  { href: '/upload',     label: 'Import', icon: UploadCloud },
   { href: '/wallet',     label: 'Crédits', icon: Wallet },
 ]
 
