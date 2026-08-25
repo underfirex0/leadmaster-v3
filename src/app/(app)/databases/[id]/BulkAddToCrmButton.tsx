@@ -23,7 +23,7 @@ export function BulkAddToCrmButton({ queryId, count }: { queryId: string; count:
     <button onClick={handleClick} disabled={state === 'loading'}
       className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gray-900 text-white text-[12.5px] font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50">
       {state === 'loading' ? <Loader2 className="w-4 h-4 animate-spin" /> : <UsersRound className="w-4 h-4" />}
-      Ajouter les {count.toLocaleString('fr-FR')} entreprises au CRM
+      Ajouter les {count.toLocaleString('fr-FR')} entreprises restantes au CRM
     </button>
   )
 }

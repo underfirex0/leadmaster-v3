@@ -5,7 +5,8 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 
 // Adds every company in an existing saved search to the CRM in one go —
 // avoids shipping a potentially thousands-long id list to the browser
-// and back just to re-send it here.
+// and back just to re-send it here. Companies already in CRM (from
+// this or another selection) are left untouched.
 export async function POST(request: NextRequest) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()

@@ -3,6 +3,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 
+// Manual add — single company or a specific list. Tags each new lead
+// with the search it came from (sourceQueryId), so CRM can always show
+// and filter by which selection a lead belongs to. A company already
+// in CRM from an earlier add keeps its original status/provenance —
+// this never overwrites an existing lead.
 export async function POST(request: NextRequest) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()

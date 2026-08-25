@@ -33,12 +33,14 @@ const STATUS_DOT: Record<CrmStatus, string> = {
 }
 
 export function CompanyRow({
-  leadId, status, company, unlockedFields,
-}: { leadId: string; status: CrmStatus; company: RowCompany; unlockedFields: FieldGroupId[] }) {
+  leadId, status, company, unlockedFields, sourceQueryId, onAdded,
+}: { leadId?: string; status?: CrmStatus; company: RowCompany; unlockedFields: FieldGroupId[]; sourceQueryId?: string; onAdded?: () => void }) {
   const router = useRouter()
-  const [currentStatus, setCurrentStatus] = useState(status)
+  const [currentStatus, setCurrentStatus] = useState(status ?? 'to_call')
   const [menuOpen, setMenuOpen] = useState(false)
   const [unlockingField, setUnlockingField] = useState<FieldGroupId | null>(null)
+  const [adding, setAdding] = useState(false)
+  const [added, setAdded] = useState(!!leadId)
 
   const unlockedSet = new Set(unlockedFields)
   const lockedFields = ALL_METERED_FIELDS.filter(f => !unlockedSet.has(f))
@@ -49,6 +51,20 @@ export function CompanyRow({
     await fetch(`/api/crm/leads/${leadId}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: s }),
     })
+  }
+
+  async function addToCrm() {
+    setAdding(true)
+    const res = await fetch('/api/crm/leads', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ companyId: company.id, sourceQueryId }),
+    })
+    setAdding(false)
+    if (res.ok) {
+      setAdded(true)
+      onAdded?.()
+      router.refresh()
+    }
   }
 
   async function unlockOne(field: FieldGroupId) {
@@ -77,20 +93,29 @@ export function CompanyRow({
           </div>
         </div>
         <div className="relative shrink-0">
-          <button onClick={() => setMenuOpen(o => !o)}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-50 text-[11.5px] font-semibold text-gray-600 hover:bg-gray-100">
-            <span className={cn('w-1.5 h-1.5 rounded-full', STATUS_DOT[currentStatus])} />
-            {CRM_STATUS_LABELS[currentStatus]}
-          </button>
-          {menuOpen && (
-            <div className="absolute right-0 mt-1 bg-white border border-gray-100 rounded-xl shadow-lg py-1 z-10 min-w-[140px]">
-              {CRM_STATUSES.map(s => (
-                <button key={s} onClick={() => changeStatus(s)}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-[12px] text-gray-600 hover:bg-gray-50 text-left">
-                  <span className={cn('w-1.5 h-1.5 rounded-full', STATUS_DOT[s])} />{CRM_STATUS_LABELS[s]}
-                </button>
-              ))}
-            </div>
+          {!added ? (
+            <button onClick={addToCrm} disabled={adding}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-900 text-white text-[11.5px] font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50">
+              {adding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Ajouter au CRM'}
+            </button>
+          ) : (
+            <>
+              <button onClick={() => setMenuOpen(o => !o)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-50 text-[11.5px] font-semibold text-gray-600 hover:bg-gray-100">
+                <span className={cn('w-1.5 h-1.5 rounded-full', STATUS_DOT[currentStatus])} />
+                {CRM_STATUS_LABELS[currentStatus]}
+              </button>
+              {menuOpen && (
+                <div className="absolute right-0 mt-1 bg-white border border-gray-100 rounded-xl shadow-lg py-1 z-10 min-w-[140px]">
+                  {CRM_STATUSES.map(s => (
+                    <button key={s} onClick={() => changeStatus(s)}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-[12px] text-gray-600 hover:bg-gray-50 text-left">
+                      <span className={cn('w-1.5 h-1.5 rounded-full', STATUS_DOT[s])} />{CRM_STATUS_LABELS[s]}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

@@ -308,6 +308,11 @@ export default function SearchWizardPage() {
                           className="w-4 h-4 rounded accent-brand-600 shrink-0" title="Tout sélectionner dans ce secteur" />
                         <button onClick={() => setExpandedSectors(p => { const n = new Set(p); n.has(s.sector) ? n.delete(s.sector) : n.add(s.sector); return n })}
                           className="text-[13px] font-semibold text-gray-800 text-left truncate">{s.sector}</button>
+                        {sectorAllSelected && sectorIds.length > 1 && (
+                          <span className="text-[10.5px] font-semibold text-brand-600 bg-brand-50 px-1.5 py-0.5 rounded shrink-0">
+                            {sectorIds.length} activités incluses
+                          </span>
+                        )}
                       </span>
                       <span className="text-[11.5px] text-gray-400 shrink-0">{s.totalCount.toLocaleString('fr-FR')}</span>
                     </div>
@@ -323,6 +328,9 @@ export default function SearchWizardPage() {
                             onChange={() => toggleDomaine(d)}
                             className="w-3.5 h-3.5 rounded accent-brand-600 shrink-0" title="Tout sélectionner dans ce domaine" />
                           <span className="text-[11.5px] font-semibold text-gray-400">{d.domaine}</span>
+                          {domAllSelected && domIds.length > 1 && (
+                            <span className="text-[10px] font-semibold text-brand-600 bg-brand-50 px-1.5 py-0.5 rounded">{domIds.length} activités</span>
+                          )}
                         </label>
                         {d.activites.map(a => (
                           <label key={a.id} className="flex items-center justify-between px-3 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer">
