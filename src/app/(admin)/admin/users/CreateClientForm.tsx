@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, UserPlus, Copy, Check } from 'lucide-react'
+import { PLANS } from '@/lib/constants'
 
 export function CreateClientForm() {
   const router = useRouter()
@@ -9,6 +10,7 @@ export function CreateClientForm() {
   const [email, setEmail] = useState('')
   const [fullName, setFullName] = useState('')
   const [startingCredits, setStartingCredits] = useState('100')
+  const [planId, setPlanId] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [created, setCreated] = useState<{ email: string; password: string } | null>(null)
@@ -20,13 +22,13 @@ export function CreateClientForm() {
     setError(null)
     const res = await fetch('/api/admin/users', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, fullName, startingCredits: Number(startingCredits) }),
+      body: JSON.stringify({ email, fullName, startingCredits: Number(startingCredits), planId: planId || undefined }),
     })
     const data = await res.json()
     setLoading(false)
     if (!res.ok) { setError(data.error); return }
     setCreated({ email: data.email, password: data.password })
-    setEmail(''); setFullName(''); setStartingCredits('100')
+    setEmail(''); setFullName(''); setStartingCredits('100'); setPlanId('')
     router.refresh()
   }
 
@@ -72,7 +74,15 @@ export function CreateClientForm() {
           className="flex-1 min-w-[150px] px-3 py-2 rounded-lg border border-gray-200 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand-500" />
         <input type="number" min={0} value={startingCredits} onChange={e => setStartingCredits(e.target.value)} placeholder="Crédits"
           className="w-28 px-3 py-2 rounded-lg border border-gray-200 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand-500" />
+        <select value={planId} onChange={e => setPlanId(e.target.value)}
+          className="px-3 py-2 rounded-lg border border-gray-200 text-[13px] text-gray-600 focus:outline-none">
+          <option value="">Pay-as-you-go (sans plan)</option>
+          {Object.values(PLANS).map(p => (
+            <option key={p.id} value={p.id}>{p.name}{p.maxSeats > 1 ? ` — ${p.maxSeats} sièges` : ''}</option>
+          ))}
+        </select>
       </div>
+      <p className="text-[11.5px] text-gray-400">Un plan avec plusieurs sièges (Équipe, Business) permet au client de créer ses propres employés.</p>
       {error && <p className="text-[12px] text-red-600">{error}</p>}
       <div className="flex items-center gap-2">
         <button type="submit" disabled={loading}

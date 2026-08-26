@@ -3,6 +3,7 @@ import { FeatureToggles } from './FeatureToggles'
 import { GrantCreditsForm } from './GrantCreditsForm'
 import { CreateClientForm } from './CreateClientForm'
 import { DeleteUserButton } from './DeleteUserButton'
+import { PlanSelect } from './PlanSelect'
 
 export default async function AdminUsersPage({ searchParams }: { searchParams: { q?: string } }) {
   const q = searchParams.q?.trim() ?? ''
@@ -41,9 +42,10 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: {
                 {u.full_name ?? u.email}
                 {u.is_admin && <span className="text-[10px] font-bold text-brand-600 bg-brand-50 px-1.5 py-0.5 rounded">ADMIN</span>}
               </div>
-              <div className="text-[11.5px] text-gray-400">{u.email} · {u.credit_balance.toLocaleString('fr-FR')} cr · {u.plan_id ?? 'pay-as-you-go'}</div>
+              <div className="text-[11.5px] text-gray-400">{u.email} · {u.credit_balance.toLocaleString('fr-FR')} cr</div>
             </div>
             <div className="flex items-center gap-3">
+              <PlanSelect userId={u.id} current={u.plan_id} />
               <FeatureToggles userId={u.id} access={accessMap.get(u.id) ?? {}} />
               <GrantCreditsForm userId={u.id} />
               <DeleteUserButton userId={u.id} label={u.full_name ?? u.email} />

@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { PLANS } from '@/lib/constants'
 
 async function requireAdmin(): Promise<boolean> {
   const supabase = createClient()
@@ -22,7 +23,7 @@ function randomPassword(): string {
 export async function POST(request: NextRequest) {
   if (!(await requireAdmin())) return NextResponse.json({ error: 'Refusé' }, { status: 403 })
 
-  const { email, fullName, startingCredits } = await request.json()
+  const { email, fullName, startingCredits, planId } = await request.json()
   if (!email?.includes('@')) return NextResponse.json({ error: 'Email invalide' }, { status: 400 })
 
   const password = randomPassword()
@@ -35,10 +36,17 @@ export async function POST(request: NextRequest) {
   }
 
   const credits = Number.isFinite(startingCredits) ? Math.max(0, Math.round(startingCredits)) : 100
+  const updates: Record<string, unknown> = {}
+  if (credits !== 100) updates.credit_balance = credits
+  // Assigning a plan here (particularly one with team seats) means the
+  // client can immediately create and manage their own worker accounts
+  // from /account, without anyone needing to touch the database by hand.
+  if (planId && (PLANS as Record<string, unknown>)[planId]) updates.plan_id = planId
+
+  if (Object.keys(updates).length) {
+    await supabaseAdmin.from('profiles').update(updates).eq('id', created.user.id)
+  }
   if (credits !== 100) {
-    // The signup trigger already granted the default 100 — adjust to
-    // whatever the admin actually asked for, with an audit entry.
-    await supabaseAdmin.from('profiles').update({ credit_balance: credits }).eq('id', created.user.id)
     await supabaseAdmin.from('credit_transactions').insert({
       user_id: created.user.id, amount: credits - 100, reason: 'admin_grant', balance_after: credits,
     })

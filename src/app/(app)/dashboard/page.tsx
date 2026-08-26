@@ -2,18 +2,22 @@ import Link from 'next/link'
 import { Search, Users2, Wallet, Database, Lock, Sparkles, ArrowRight, MapPin } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { AnalyticsSection } from '@/components/dashboard/AnalyticsSection'
 
 export default async function DashboardPage() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  const [{ data: profile }, { count: unlockCount }, { count: leadCount }, { data: stats }, { data: recentUnlocks }] = await Promise.all([
+  const [{ data: profile }, { count: unlockCount }, { count: leadCount }, { data: stats }, { data: recentUnlocks }, { data: cities }, { data: taxonomies }, { data: legalForms }] = await Promise.all([
     supabaseAdmin.from('profiles').select('credit_balance, full_name').eq('id', user.id).single(),
     supabaseAdmin.from('company_unlocks').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
     supabaseAdmin.from('crm_leads').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
-    supabaseAdmin.from('admin_stats_catalog').select('total_companies').single(),
+    supabaseAdmin.from('admin_stats_catalog').select('*').single(),
     supabaseAdmin.from('company_unlocks').select('company_id, unlocked_at').eq('user_id', user.id).order('unlocked_at', { ascending: false }).limit(3),
+    supabaseAdmin.from('cities_catalog').select('city, company_count').order('company_count', { ascending: false }).limit(5),
+    supabaseAdmin.from('taxonomy_catalog').select('sector, company_count'),
+    supabaseAdmin.from('legal_form_catalog').select('forme_juridique, company_count').order('company_count', { ascending: false }).limit(5),
   ])
 
   const recentCompanyIds = (recentUnlocks ?? []).map(u => u.company_id)
@@ -26,6 +30,13 @@ export default async function DashboardPage() {
   const balance = profile?.credit_balance ?? 0
   const unlocked = unlockCount ?? 0
   const leads = leadCount ?? 0
+
+  const pct = (n: number) => totalCompanies ? Math.round(100 * n / totalCompanies) : 0
+  const sectorTotals = new Map<string, number>()
+  for (const row of taxonomies ?? []) sectorTotals.set(row.sector, (sectorTotals.get(row.sector) ?? 0) + row.company_count)
+  const topSectors = [...sectorTotals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, value]) => ({ name, value }))
+  const topCities = (cities ?? []).map(c => ({ name: c.city, value: c.company_count }))
+  const topLegalForms = (legalForms ?? []).map(f => ({ name: f.forme_juridique, value: f.company_count }))
 
   const statCards = [
     { label: 'Base de données', value: totalCompanies.toLocaleString('fr-FR'), sub: 'entreprises', icon: Database, iconBg: 'bg-brand-50 text-brand-600' },
@@ -115,6 +126,20 @@ export default async function DashboardPage() {
             )}
           </div>
         </div>
+      </div>
+
+      <div className="mt-8">
+        <AnalyticsSection
+          totalCompanies={totalCompanies}
+          phonePct={pct(stats?.with_phone ?? 0)}
+          icePct={pct(stats?.with_ice ?? 0)}
+          directorPct={pct(stats?.with_director ?? 0)}
+          effectifPct={pct(stats?.with_effectif ?? 0)}
+          capitalPct={pct(stats?.with_capital ?? 0)}
+          topCities={topCities}
+          topSectors={topSectors}
+          topLegalForms={topLegalForms}
+        />
       </div>
     </div>
   )
