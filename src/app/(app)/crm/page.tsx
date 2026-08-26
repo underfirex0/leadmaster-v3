@@ -1,8 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { fetchInChunks } from '@/lib/chunked'
+import { resolveTeamRoot } from '@/lib/team'
 import { CRM_STATUSES, type CrmStatus, type FieldGroupId } from '@/lib/constants'
-import { CompanyRow, type RowCompany } from '@/components/crm/CompanyRow'
+import { type RowCompany } from '@/components/crm/CompanyRow'
+import { CrmLeadsClient, type CrmLeadItem } from '@/components/crm/CrmLeadsClient'
 import { FiltersBar } from '@/components/crm/FiltersBar'
 import Link from 'next/link'
 import { ChevronLeft, ChevronRight, Database } from 'lucide-react'
@@ -16,13 +18,28 @@ export default async function CrmPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  // Every lead the user has actually added — across every selection.
-  // This is the ONLY place status/pipeline management happens.
+  const teamRoot = await resolveTeamRoot(user.id)
+  const canAssign = teamRoot === user.id  // only the actual team owner reassigns leads
+
+  // Every lead the team has actually added — shared pool, scoped by
+  // owner_account_id (the team root), not by whoever personally added
+  // it. This is the ONLY place status/pipeline management happens.
   const { data: leads } = await supabaseAdmin
     .from('crm_leads')
-    .select('id, company_id, status, priority, source_query_name, created_at')
-    .eq('user_id', user.id)
+    .select('id, company_id, status, priority, source_query_name, callback_date, assigned_to, created_at')
+    .eq('owner_account_id', teamRoot)
     .order('created_at', { ascending: false })
+
+  // Team roster for the assignment dropdown — the owner plus everyone
+  // they've created as a member.
+  const [{ data: ownerProfile }, { data: members }] = await Promise.all([
+    supabaseAdmin.from('profiles').select('id, full_name, email').eq('id', teamRoot).single(),
+    supabaseAdmin.from('profiles').select('id, full_name, email').eq('team_owner_id', teamRoot),
+  ])
+  const assigneeOptions = [
+    ...(ownerProfile ? [{ id: ownerProfile.id, name: (ownerProfile.full_name || ownerProfile.email) + (ownerProfile.id === user.id ? ' (vous)' : '') }] : []),
+    ...(members ?? []).map(m => ({ id: m.id, name: (m.full_name || m.email) + (m.id === user.id ? ' (vous)' : '') })),
+  ]
 
   if (!leads?.length) {
     return (
@@ -76,11 +93,21 @@ export default async function CrmPage({
       supabaseAdmin.from('companies_v2').select('id, name, city, sector, activite, phone_1, phone_2, website, ice, rc, director, annee_creation, effectif_tranche, capital_mad, address_raw').in('id', chunkIds)
     ) as Promise<RowCompany[]>,
     fetchInChunks(pageCompanyIds, chunkIds =>
-      supabaseAdmin.from('company_unlocks').select('company_id, fields').eq('user_id', user.id).in('company_id', chunkIds)
+      supabaseAdmin.from('company_unlocks').select('company_id, fields').eq('user_id', teamRoot).in('company_id', chunkIds)
     ) as Promise<{ company_id: string; fields: string[] }[]>,
   ])
   const detailedMap = new Map(detailedCompanies.map(c => [c.id, c]))
   const unlockMap = new Map(unlocks.map(u => [u.company_id, u.fields as FieldGroupId[]]))
+
+  const items: CrmLeadItem[] = pageLeads.map(lead => ({
+    leadId: lead.id,
+    status: lead.status as CrmStatus,
+    company: detailedMap.get(lead.company_id!) as RowCompany,
+    unlockedFields: lead.company_id ? (unlockMap.get(lead.company_id) ?? []) : [],
+    sourceQueryName: lead.source_query_name,
+    callbackDate: lead.callback_date,
+    assignedTo: lead.assigned_to,
+  })).filter(i => i.company)
 
   const buildQS = (extra: Record<string, string>) => {
     const p = new URLSearchParams()
@@ -96,28 +123,16 @@ export default async function CrmPage({
   return (
     <div>
       <h1 className="text-xl font-bold text-gray-900 mb-1">CRM</h1>
-      <p className="text-[13px] text-gray-400 mb-6">Suivez vos prospects, filtrez et changez leur statut.</p>
+      <p className="text-[13px] text-gray-400 mb-6">
+        Suivez vos prospects, filtrez et changez leur statut.
+        {assigneeOptions.length > 1 && ' Pipeline partagé avec votre équipe.'}
+      </p>
 
       <FiltersBar statusCounts={statusCounts} cities={cities} sectors={sectors} sources={sources} />
 
       <p className="text-[12px] text-gray-400 mb-2">{filtered.length.toLocaleString('fr-FR')} leads · page {page}/{totalPages}</p>
 
-      <div className="space-y-2">
-        {pageLeads.map(lead => {
-          const detailed = lead.company_id ? detailedMap.get(lead.company_id) : null
-          if (!detailed) return null
-          return (
-            <CompanyRow key={lead.id} mode="manage" leadId={lead.id} status={lead.status as CrmStatus}
-              company={detailed} unlockedFields={lead.company_id ? (unlockMap.get(lead.company_id) ?? []) : []}
-              sourceQueryName={lead.source_query_name} />
-          )
-        })}
-        {!pageLeads.length && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center text-[13px] text-gray-400">
-            Aucun lead ne correspond à ces filtres.
-          </div>
-        )}
-      </div>
+      <CrmLeadsClient items={items} assigneeOptions={assigneeOptions} canAssign={canAssign} />
 
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-3 mt-6">

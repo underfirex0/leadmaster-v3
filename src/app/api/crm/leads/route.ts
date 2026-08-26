@@ -2,12 +2,14 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { resolveTeamRoot } from '@/lib/team'
 
 // Manual add — single company or a specific list. Tags each new lead
 // with the search it came from (sourceQueryId), so CRM can always show
 // and filter by which selection a lead belongs to. A company already
 // in CRM from an earlier add keeps its original status/provenance —
-// this never overwrites an existing lead.
+// this never overwrites an existing lead. Scoped to the team's shared
+// pool (owner_account_id), so anyone on the same team sees it.
 export async function POST(request: NextRequest) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -16,6 +18,8 @@ export async function POST(request: NextRequest) {
   const body = await request.json()
   const companyIds: string[] = body.companyIds ?? (body.companyId ? [body.companyId] : [])
   if (!companyIds.length) return NextResponse.json({ error: 'companyId(s) requis' }, { status: 400 })
+
+  const teamRoot = await resolveTeamRoot(user.id)
 
   let sourceQueryName: string | null = null
   if (body.sourceQueryId) {
@@ -31,12 +35,12 @@ export async function POST(request: NextRequest) {
   if (!validIds.length) return NextResponse.json({ error: 'Aucune de ces entreprises n\'est débloquée' }, { status: 403 })
 
   const rows = validIds.map(companyId => ({
-    user_id: user.id, company_id: companyId, status: 'to_call',
+    user_id: user.id, owner_account_id: teamRoot, company_id: companyId, status: 'to_call',
     source_query_id: body.sourceQueryId ?? null, source_query_name: sourceQueryName,
   }))
   const { error } = await supabaseAdmin
     .from('crm_leads')
-    .upsert(rows, { onConflict: 'user_id,company_id', ignoreDuplicates: true })
+    .upsert(rows, { onConflict: 'owner_account_id,company_id', ignoreDuplicates: true })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ added: validIds.length, skipped: companyIds.length - validIds.length })

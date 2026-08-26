@@ -27,7 +27,7 @@ export const FIELD_GROUPS = {
   address: {
     id: 'address', label: 'Adresse complète', cost: 1,
     columns: ['address_raw', 'latitude', 'longitude'],
-    coverageKey: null,   // no dedicated address_coverage column; not metered
+    coverageKey: 'address_coverage' as const,   // real coverage — was wrongly treated as always-100% before
     description: 'Adresse + coordonnées GPS', icon: 'map-pin',
   },
   ice: {
@@ -109,15 +109,20 @@ export const CREDIT_PACKS = [
 ] as const
 
 export const CRM_STATUSES = [
-  'to_call', 'in_progress', 'callback', 'interested', 'not_interested', 'converted', 'archived',
+  'to_call', 'in_progress', 'callback', 'appointment', 'interested', 'not_interested', 'converted', 'archived',
 ] as const
 export type CrmStatus = (typeof CRM_STATUSES)[number]
 
 export const CRM_STATUS_LABELS: Record<CrmStatus, string> = {
-  to_call: 'À appeler', in_progress: 'En cours', callback: 'À rappeler',
+  to_call: 'À appeler', in_progress: 'En cours', callback: 'À rappeler', appointment: 'Rendez-vous pris',
   interested: 'Intéressé', not_interested: 'Pas intéressé',
   converted: 'Converti', archived: 'Archivé',
 }
+
+// Statuses where changing to them requires picking a date & time —
+// both write to crm_leads.callback_date, whichever one it means for
+// that particular status (a callback time, or an appointment time).
+export const CRM_STATUSES_NEEDING_DATE: CrmStatus[] = ['callback', 'appointment']
 
 export const REFUND_REASONS = {
   closed: 'Entreprise fermée', wrong_number: 'Numéro incorrect',

@@ -3,16 +3,19 @@ import { Search, Users2, Wallet, Database, Lock, Sparkles, ArrowRight, MapPin } 
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { AnalyticsSection } from '@/components/dashboard/AnalyticsSection'
+import { resolveTeamRoot } from '@/lib/team'
 
 export default async function DashboardPage() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
+  const teamRoot = await resolveTeamRoot(user.id)
+
   const [{ data: profile }, { count: unlockCount }, { count: leadCount }, { data: stats }, { data: recentUnlocks }, { data: cities }, { data: taxonomies }, { data: legalForms }] = await Promise.all([
     supabaseAdmin.from('profiles').select('credit_balance, full_name').eq('id', user.id).single(),
     supabaseAdmin.from('company_unlocks').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
-    supabaseAdmin.from('crm_leads').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+    supabaseAdmin.from('crm_leads').select('*', { count: 'exact', head: true }).eq('owner_account_id', teamRoot),
     supabaseAdmin.from('admin_stats_catalog').select('*').single(),
     supabaseAdmin.from('company_unlocks').select('company_id, unlocked_at').eq('user_id', user.id).order('unlocked_at', { ascending: false }).limit(3),
     supabaseAdmin.from('cities_catalog').select('city, company_count').order('company_count', { ascending: false }).limit(5),

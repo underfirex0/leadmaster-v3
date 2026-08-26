@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { fetchCompaniesByIds, fetchInChunks } from '@/lib/chunked'
+import { resolveTeamRoot } from '@/lib/team'
 import type { FieldGroupId } from '@/lib/constants'
 import { CompanyRow, type RowCompany } from '@/components/crm/CompanyRow'
 import { FiltersBar } from '@/components/crm/FiltersBar'
@@ -36,7 +37,7 @@ export default async function DatabaseDetailPage({
   const { data: leads } = await supabaseAdmin
     .from('crm_leads')
     .select('id, company_id')
-    .eq('user_id', user.id)
+    .eq('owner_account_id', await resolveTeamRoot(user.id))
     .eq('source_query_id', query.id)
   const leadByCompany = new Map((leads ?? []).map(l => [l.company_id, l]))
 

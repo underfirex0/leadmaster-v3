@@ -4,10 +4,11 @@ import { GrantCreditsForm } from './GrantCreditsForm'
 import { CreateClientForm } from './CreateClientForm'
 import { DeleteUserButton } from './DeleteUserButton'
 import { PlanSelect } from './PlanSelect'
+import { PauseButton } from './PauseButton'
 
 export default async function AdminUsersPage({ searchParams }: { searchParams: { q?: string } }) {
   const q = searchParams.q?.trim() ?? ''
-  let query = supabaseAdmin.from('profiles').select('id, email, full_name, credit_balance, plan_id, is_admin, created_at').order('created_at', { ascending: false }).limit(50)
+  let query = supabaseAdmin.from('profiles').select('id, email, full_name, credit_balance, plan_id, is_admin, is_paused, created_at').order('created_at', { ascending: false }).limit(50)
   if (q) query = query.or(`email.ilike.%${q}%,full_name.ilike.%${q}%`)
   const { data: users } = await query
 
@@ -41,6 +42,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: {
               <div className="text-[13.5px] font-semibold text-gray-800 flex items-center gap-2">
                 {u.full_name ?? u.email}
                 {u.is_admin && <span className="text-[10px] font-bold text-brand-600 bg-brand-50 px-1.5 py-0.5 rounded">ADMIN</span>}
+                {u.is_paused && <span className="text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded">SUSPENDU</span>}
               </div>
               <div className="text-[11.5px] text-gray-400">{u.email} · {u.credit_balance.toLocaleString('fr-FR')} cr</div>
             </div>
@@ -48,6 +50,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: {
               <PlanSelect userId={u.id} current={u.plan_id} />
               <FeatureToggles userId={u.id} access={accessMap.get(u.id) ?? {}} />
               <GrantCreditsForm userId={u.id} />
+              <PauseButton userId={u.id} paused={u.is_paused} />
               <DeleteUserButton userId={u.id} label={u.full_name ?? u.email} />
             </div>
           </div>

@@ -2,19 +2,29 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient as createRawClient } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 
-// Service-role client for authorization checks only (is_admin, feature
-// gates) — deliberately bypasses RLS since these are gate decisions the
-// app itself makes, not user-owned data reads that should be subject to
-// row policies. Edge-runtime compatible (supabase-js is fetch-based).
+// Service-role client for ALL authorization checks — is_admin, paused
+// status, and feature access. Deliberately bypasses RLS: these are
+// gate decisions the app itself makes, not user-owned data reads that
+// should be subject to row policies, and RLS reads through the normal
+// cookie-bound client have proven unreliable on this project before
+// (this is exactly the bug that silently made feature blocking do
+// nothing — it was reading user_feature_access through the RLS client,
+// which was quietly returning no data instead of the real row).
 const supabaseAuthCheck = createRawClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
   { auth: { autoRefreshToken: false, persistSession: false } }
 )
 
-async function checkIsAdmin(userId: string): Promise<boolean> {
-  const { data } = await supabaseAuthCheck.from('profiles').select('is_admin').eq('id', userId).single()
-  return data?.is_admin === true
+async function getAuthProfile(userId: string): Promise<{ isAdmin: boolean; isPaused: boolean }> {
+  const { data } = await supabaseAuthCheck.from('profiles').select('is_admin, is_paused').eq('id', userId).single()
+  return { isAdmin: data?.is_admin === true, isPaused: data?.is_paused === true }
+}
+
+async function isFeatureBlocked(userId: string, feature: string): Promise<boolean> {
+  const { data } = await supabaseAuthCheck.from('user_feature_access').select('enabled')
+    .eq('user_id', userId).eq('feature', feature).maybeSingle()
+  return data?.enabled === false
 }
 
 // Feature gates: URL prefix -> feature key that must be enabled for
@@ -43,19 +53,10 @@ function matchFeature(pathname: string): string | null {
 
 const PROTECTED_PREFIXES = [
   '/dashboard', '/search', '/results', '/wallet', '/crm', '/upload',
-  '/account', '/databases', '/admin',
+  '/account', '/databases', '/admin', '/kpis',
 ]
 const AUTH_PREFIXES = ['/login', '/register']
 
-// NOTE on CVE-2025-29927 (middleware authorization bypass, fixed in
-// 14.2.25): we're on 14.2.35, past the patched version, so the
-// x-middleware-subrequest bypass itself is closed at the framework
-// level. Even so, this middleware is treated as a UX/redirect layer,
-// not the sole authorization boundary — every API route and server
-// component below independently re-checks supabase.auth.getUser()
-// and RLS is enabled on every table. Middleware being bypassed (by a
-// future framework bug or misconfiguration) should never be the only
-// thing standing between a request and someone else's data.
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request: { headers: request.headers } })
 
@@ -93,33 +94,35 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user) {
-    const feature = matchFeature(pathname)
-    if (feature) {
-      const isAdmin = await checkIsAdmin(user.id)
-      if (!isAdmin) {
-        const { data: access } = await supabase
-          .from('user_feature_access').select('enabled')
-          .eq('user_id', user.id).eq('feature', feature).maybeSingle()
-        if (access && access.enabled === false) {
-          if (pathname.startsWith('/api/')) {
-            return NextResponse.json({ error: 'Fonctionnalité désactivée pour ce compte.', feature }, { status: 403 })
-          }
-          const url = request.nextUrl.clone()
-          url.pathname = '/dashboard'
-          url.searchParams.set('blocked', feature)
-          return NextResponse.redirect(url)
+    const { isAdmin, isPaused } = await getAuthProfile(user.id)
+
+    // A paused account is blocked from everything protected — no
+    // partial access, no silent failures, just a clear message.
+    // Admins are exempt so support can never lock itself out.
+    if (isPaused && !isAdmin && isProtected && pathname !== '/suspended') {
+      if (pathname.startsWith('/api/')) {
+        return NextResponse.json({ error: 'Votre compte est suspendu.' }, { status: 403 })
+      }
+      const url = request.nextUrl.clone()
+      url.pathname = '/suspended'
+      return NextResponse.redirect(url)
+    }
+
+    if (!isPaused) {
+      const feature = matchFeature(pathname)
+      if (feature && !isAdmin && await isFeatureBlocked(user.id, feature)) {
+        if (pathname.startsWith('/api/')) {
+          return NextResponse.json({ error: 'Fonctionnalité désactivée pour ce compte.', feature }, { status: 403 })
         }
+        const url = request.nextUrl.clone()
+        url.pathname = '/dashboard'
+        url.searchParams.set('blocked', feature)
+        return NextResponse.redirect(url)
       }
     }
-  }
 
-  // Admin routes: require is_admin, independent of the feature-gate system above.
-  // Uses the service-role client here specifically, bypassing RLS — this is an
-  // authorization decision, not a data read the person should be filtered by,
-  // so it must never be affected by an RLS policy misbehaving.
-  if (user && pathname.startsWith('/admin')) {
-    const isAdmin = await checkIsAdmin(user.id)
-    if (!isAdmin) {
+    // Admin routes: require is_admin, independent of the feature-gate system above.
+    if (pathname.startsWith('/admin') && !isAdmin) {
       const url = request.nextUrl.clone()
       url.pathname = '/dashboard'
       return NextResponse.redirect(url)

@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { resolveTeamRoot } from '@/lib/team'
 
 // Adds every company in an existing saved search to the CRM in one go —
 // avoids shipping a potentially thousands-long id list to the browser
@@ -21,11 +22,12 @@ export async function POST(request: NextRequest) {
   const companyIds = (query.company_ids as string[]) ?? []
   if (!companyIds.length) return NextResponse.json({ added: 0 })
 
+  const teamRoot = await resolveTeamRoot(user.id)
   const rows = companyIds.map(companyId => ({
-    user_id: user.id, company_id: companyId, status: 'to_call',
+    user_id: user.id, owner_account_id: teamRoot, company_id: companyId, status: 'to_call',
     source_query_id: queryId, source_query_name: query.query_name,
   }))
-  const { error } = await supabaseAdmin.from('crm_leads').upsert(rows, { onConflict: 'user_id,company_id', ignoreDuplicates: true })
+  const { error } = await supabaseAdmin.from('crm_leads').upsert(rows, { onConflict: 'owner_account_id,company_id', ignoreDuplicates: true })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({ added: companyIds.length })
