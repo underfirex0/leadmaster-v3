@@ -106,7 +106,7 @@ export default async function CrmPage({
       supabaseAdmin.from('companies_v2').select('id, name, city, sector, activite, phone_1, phone_2, website, ice, rc, director, annee_creation, effectif_tranche, capital_mad, address_raw').in('id', chunkIds)
     ) as Promise<RowCompany[]>,
     fetchInChunks(pageCompanyIds, chunkIds =>
-      supabaseAdmin.from('company_unlocks').select('company_id, fields').eq('user_id', teamRoot).in('company_id', chunkIds)
+      supabaseAdmin.from('company_unlocks').select('company_id, fields').eq('owner_account_id', teamRoot).in('company_id', chunkIds)
     ) as Promise<{ company_id: string; fields: string[] }[]>,
   ])
   const detailedMap = new Map(detailedCompanies.map(c => [c.id, c]))

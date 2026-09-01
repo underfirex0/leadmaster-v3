@@ -14,10 +14,10 @@ export default async function DashboardPage() {
 
   const [{ data: profile }, { count: unlockCount }, { count: leadCount }, { data: stats }, { data: recentUnlocks }, { data: cities }, { data: taxonomies }, { data: legalForms }] = await Promise.all([
     supabaseAdmin.from('profiles').select('credit_balance, full_name').eq('id', user.id).single(),
-    supabaseAdmin.from('company_unlocks').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+    supabaseAdmin.from('company_unlocks').select('*', { count: 'exact', head: true }).eq('owner_account_id', teamRoot),
     supabaseAdmin.from('crm_leads').select('*', { count: 'exact', head: true }).eq('owner_account_id', teamRoot),
     supabaseAdmin.from('admin_stats_catalog').select('*').single(),
-    supabaseAdmin.from('company_unlocks').select('company_id, unlocked_at').eq('user_id', user.id).order('unlocked_at', { ascending: false }).limit(3),
+    supabaseAdmin.from('company_unlocks').select('company_id, unlocked_at').eq('owner_account_id', teamRoot).order('unlocked_at', { ascending: false }).limit(3),
     supabaseAdmin.from('cities_catalog').select('city, company_count').order('company_count', { ascending: false }).limit(5),
     supabaseAdmin.from('taxonomy_catalog').select('sector, company_count'),
     supabaseAdmin.from('legal_form_catalog').select('forme_juridique, company_count').order('company_count', { ascending: false }).limit(5),

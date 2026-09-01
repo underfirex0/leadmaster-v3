@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { FIELD_GROUPS, type FieldGroupId } from '@/lib/constants'
-import { isFeatureAllowed } from '@/lib/team'
+import { isFeatureAllowed, resolveTeamRoot } from '@/lib/team'
 
 interface Pair { companyId: string; field: FieldGroupId }
 
@@ -20,14 +20,16 @@ export async function POST(request: NextRequest) {
     if (!(await isFeatureAllowed(user.id, 'unlock'))) {
       return NextResponse.json({ error: 'Déblocage de données désactivé pour votre compte. Contactez votre administrateur.' }, { status: 403 })
     }
+    const teamRoot = await resolveTeamRoot(user.id)
 
     const { pairs, estimateOnly } = await request.json() as { pairs: Pair[]; estimateOnly?: boolean }
     if (!pairs?.length) return NextResponse.json({ error: 'Aucun champ sélectionné' }, { status: 400 })
 
     const companyIds = [...new Set(pairs.map(p => p.companyId))]
 
-    // Drop pairs the user already owns for that company — never charge twice.
-    const { data: existing } = await supabaseAdmin.from('company_unlocks').select('company_id, fields').eq('user_id', user.id).in('company_id', companyIds)
+    // Drop pairs the TEAM already owns for that company — never charge
+    // twice, whether it was you or a teammate who unlocked it first.
+    const { data: existing } = await supabaseAdmin.from('company_unlocks').select('company_id, fields').eq('owner_account_id', teamRoot).in('company_id', companyIds)
     const ownedMap = new Map((existing ?? []).map(e => [e.company_id, new Set(e.fields as string[])]))
     const newPairs = pairs.filter(p => !(ownedMap.get(p.companyId)?.has(p.field)))
     if (!newPairs.length) return NextResponse.json({ error: 'Ces champs sont déjà débloqués' }, { status: 400 })

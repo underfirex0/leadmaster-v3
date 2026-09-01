@@ -26,13 +26,15 @@ export async function POST(request: NextRequest) {
 
   let sourceQueryName: string | null = null
   if (body.sourceQueryId) {
-    const { data: q } = await supabaseAdmin.from('queries').select('query_name').eq('id', body.sourceQueryId).eq('user_id', user.id).single()
+    const { data: q } = await supabaseAdmin.from('queries').select('query_name').eq('id', body.sourceQueryId).eq('owner_account_id', teamRoot).single()
     sourceQueryName = q?.query_name ?? null
   }
 
-  // Verify the user actually unlocked each company before letting them
+  // Verify the TEAM actually unlocked each company before letting anyone
   // add it as a lead — CRM leads shouldn't bypass the unlock system.
-  const { data: unlocks } = await supabaseAdmin.from('company_unlocks').select('company_id').eq('user_id', user.id).in('company_id', companyIds)
+  // Team-wide, not individual: a company a teammate already unlocked
+  // should be addable by anyone on the team, not just whoever paid for it.
+  const { data: unlocks } = await supabaseAdmin.from('company_unlocks').select('company_id').eq('owner_account_id', teamRoot).in('company_id', companyIds)
   const unlockedIds = new Set((unlocks ?? []).map(u => u.company_id))
   const validIds = companyIds.filter(id => unlockedIds.has(id))
   if (!validIds.length) return NextResponse.json({ error: 'Aucune de ces entreprises n\'est débloquée' }, { status: 403 })

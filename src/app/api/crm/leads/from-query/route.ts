@@ -19,13 +19,14 @@ export async function POST(request: NextRequest) {
   const { queryId } = await request.json()
   if (!queryId) return NextResponse.json({ error: 'queryId requis' }, { status: 400 })
 
-  const { data: query } = await supabaseAdmin.from('queries').select('user_id, query_name, company_ids').eq('id', queryId).single()
-  if (!query || query.user_id !== user.id) return NextResponse.json({ error: 'Recherche introuvable' }, { status: 404 })
+  const teamRoot = await resolveTeamRoot(user.id)
+
+  const { data: query } = await supabaseAdmin.from('queries').select('owner_account_id, query_name, company_ids').eq('id', queryId).single()
+  if (!query || query.owner_account_id !== teamRoot) return NextResponse.json({ error: 'Recherche introuvable' }, { status: 404 })
 
   const companyIds = (query.company_ids as string[]) ?? []
   if (!companyIds.length) return NextResponse.json({ added: 0 })
 
-  const teamRoot = await resolveTeamRoot(user.id)
   const rows = companyIds.map(companyId => ({
     user_id: user.id, owner_account_id: teamRoot, company_id: companyId, status: 'to_call',
     source_query_id: queryId, source_query_name: query.query_name,

@@ -22,11 +22,13 @@ export default async function DatabaseDetailPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
+  const teamRoot = await resolveTeamRoot(user.id)
+
   const { data: query } = await supabaseAdmin
     .from('queries')
     .select('id, query_name, result_count, credits_spent, fields, company_ids, created_at')
     .eq('id', params.id)
-    .eq('user_id', user.id)
+    .eq('owner_account_id', teamRoot)
     .single()
 
   if (!query) notFound()
@@ -37,7 +39,7 @@ export default async function DatabaseDetailPage({
   const { data: leads } = await supabaseAdmin
     .from('crm_leads')
     .select('id, company_id')
-    .eq('owner_account_id', await resolveTeamRoot(user.id))
+    .eq('owner_account_id', teamRoot)
     .eq('source_query_id', query.id)
   const leadByCompany = new Map((leads ?? []).map(l => [l.company_id, l]))
 
@@ -71,7 +73,7 @@ export default async function DatabaseDetailPage({
       supabaseAdmin.from('companies_v2').select('id, name, city, sector, activite, phone_1, phone_2, website, ice, rc, director, annee_creation, effectif_tranche, capital_mad, address_raw').in('id', chunkIds)
     ) as Promise<RowCompany[]>,
     fetchInChunks(pageCompanyIds, chunkIds =>
-      supabaseAdmin.from('company_unlocks').select('company_id, fields').eq('user_id', user.id).in('company_id', chunkIds)
+      supabaseAdmin.from('company_unlocks').select('company_id, fields').eq('owner_account_id', teamRoot).in('company_id', chunkIds)
     ) as Promise<{ company_id: string; fields: string[] }[]>,
   ])
   const detailedMap = new Map(detailedCompanies.map(c => [c.id, c]))

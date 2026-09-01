@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { FIELD_GROUPS, type FieldGroupId } from '@/lib/constants'
-import { isFeatureAllowed } from '@/lib/team'
+import { isFeatureAllowed, resolveTeamRoot } from '@/lib/team'
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,12 +13,15 @@ export async function POST(request: NextRequest) {
     if (!(await isFeatureAllowed(user.id, 'unlock'))) {
       return NextResponse.json({ error: 'Déblocage de données désactivé pour votre compte. Contactez votre administrateur.' }, { status: 403 })
     }
+    const teamRoot = await resolveTeamRoot(user.id)
 
     const { queryId, newFields, estimateOnly } = await request.json() as { queryId: string; newFields: FieldGroupId[]; estimateOnly?: boolean }
     if (!queryId || !newFields?.length) return NextResponse.json({ error: 'Paramètres manquants' }, { status: 400 })
 
-    const { data: query } = await supabaseAdmin.from('queries').select('user_id, fields, company_ids').eq('id', queryId).single()
-    if (!query || query.user_id !== user.id) return NextResponse.json({ error: 'Recherche introuvable' }, { status: 404 })
+    // Any teammate can manage a team-shared search, not just whoever
+    // originally created it.
+    const { data: query } = await supabaseAdmin.from('queries').select('owner_account_id, fields, company_ids').eq('id', queryId).single()
+    if (!query || query.owner_account_id !== teamRoot) return NextResponse.json({ error: 'Recherche introuvable' }, { status: 404 })
 
     const alreadyOwned = new Set(query.fields as string[])
     const fieldsToAdd = newFields.filter(f => !alreadyOwned.has(f))
