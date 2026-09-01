@@ -4,12 +4,16 @@ import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { countMatchingCompanies, fetchMatchingCompanyIds, getFieldCoverage, type CompanyFilters } from '@/lib/companies'
 import { FIELD_GROUPS, FREE_TRIAL_LIMIT, FREE_TRIAL_FIELDS, type FieldGroupId } from '@/lib/constants'
+import { isFeatureAllowed } from '@/lib/team'
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+    if (!(await isFeatureAllowed(user.id, 'search'))) {
+      return NextResponse.json({ error: 'Accès à la recherche désactivé pour votre compte. Contactez votre administrateur.' }, { status: 403 })
+    }
 
     const {
       queryName, taxonomyIds = [], cities = [], name = '',

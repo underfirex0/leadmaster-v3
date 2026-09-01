@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { FIELD_GROUPS, type FieldGroupId } from '@/lib/constants'
+import { isFeatureAllowed } from '@/lib/team'
 
 interface Pair { companyId: string; field: FieldGroupId }
 
@@ -16,6 +17,9 @@ export async function POST(request: NextRequest) {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+    if (!(await isFeatureAllowed(user.id, 'unlock'))) {
+      return NextResponse.json({ error: 'Déblocage de données désactivé pour votre compte. Contactez votre administrateur.' }, { status: 403 })
+    }
 
     const { pairs, estimateOnly } = await request.json() as { pairs: Pair[]; estimateOnly?: boolean }
     if (!pairs?.length) return NextResponse.json({ error: 'Aucun champ sélectionné' }, { status: 400 })

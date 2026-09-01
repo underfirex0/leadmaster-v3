@@ -1,11 +1,26 @@
 import { UploadForm } from './UploadForm'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { isFeatureAllowed } from '@/lib/team'
+import { Lock } from 'lucide-react'
 
 export default async function UploadPage() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
+
+  if (!(await isFeatureAllowed(user.id, 'data_upload'))) {
+    return (
+      <div className="max-w-xl">
+        <h1 className="text-xl font-bold text-gray-900 mb-1">Demande de données sur mesure</h1>
+        <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
+          <Lock className="w-8 h-8 text-gray-200 mx-auto mb-3" />
+          <p className="text-[14px] text-gray-500 font-medium mb-1">Accès désactivé</p>
+          <p className="text-[13px] text-gray-400">Votre administrateur a désactivé l&apos;accès à l&apos;import pour votre compte.</p>
+        </div>
+      </div>
+    )
+  }
 
   const { data: requests } = await supabaseAdmin
     .from('data_upload_requests')

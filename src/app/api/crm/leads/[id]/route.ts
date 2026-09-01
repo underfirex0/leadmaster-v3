@@ -3,12 +3,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { CRM_STATUSES } from '@/lib/constants'
 import { supabaseAdmin } from '@/lib/supabase/admin'
-import { resolveTeamRoot, isTeamOwnerOf } from '@/lib/team'
+import { resolveTeamRoot, isTeamOwnerOf, isFeatureAllowed } from '@/lib/team'
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await isFeatureAllowed(user.id, 'crm'))) {
+    return NextResponse.json({ error: 'Accès au CRM désactivé pour votre compte. Contactez votre administrateur.' }, { status: 403 })
+  }
 
   // A lead belongs to the whole team's shared pool, not just whoever
   // created it — anyone on the same team can update it.

@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { isFeatureAllowed } from '@/lib/team'
 
 // File upload storage (Supabase Storage bucket) isn't wired up in this
 // environment — this records a "custom request" description only.
@@ -10,6 +11,9 @@ export async function POST(request: NextRequest) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!(await isFeatureAllowed(user.id, 'data_upload'))) {
+    return NextResponse.json({ error: 'Import de données désactivé pour votre compte. Contactez votre administrateur.' }, { status: 403 })
+  }
 
   const { description } = await request.json()
   if (!description?.trim()) return NextResponse.json({ error: 'Description requise' }, { status: 400 })

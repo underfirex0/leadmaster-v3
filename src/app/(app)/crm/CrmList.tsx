@@ -27,7 +27,7 @@ export interface CrmLeadRow {
 }
 
 const STATUS_DOT: Record<CrmStatus, string> = {
-  to_call: 'bg-blue-500', in_progress: 'bg-purple-500', callback: 'bg-orange-500',
+  to_call: 'bg-blue-500', in_progress: 'bg-purple-500', callback: 'bg-orange-500', appointment: 'bg-teal-500',
   interested: 'bg-emerald-500', not_interested: 'bg-red-500',
   converted: 'bg-brand-600', archived: 'bg-gray-400',
 }

@@ -1,13 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { fetchInChunks } from '@/lib/chunked'
-import { resolveTeamRoot } from '@/lib/team'
+import { resolveTeamRoot, isFeatureAllowed } from '@/lib/team'
 import { CRM_STATUSES, type CrmStatus, type FieldGroupId } from '@/lib/constants'
 import { type RowCompany } from '@/components/crm/CompanyRow'
 import { CrmLeadsClient, type CrmLeadItem } from '@/components/crm/CrmLeadsClient'
 import { FiltersBar } from '@/components/crm/FiltersBar'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, Database } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Database, Lock } from 'lucide-react'
 
 const PAGE_SIZE = 20
 
@@ -17,6 +17,19 @@ export default async function CrmPage({
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
+
+  if (!(await isFeatureAllowed(user.id, 'crm'))) {
+    return (
+      <div>
+        <h1 className="text-xl font-bold text-gray-900 mb-1">CRM</h1>
+        <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
+          <Lock className="w-8 h-8 text-gray-200 mx-auto mb-3" />
+          <p className="text-[13px] text-gray-500 font-medium mb-1">Accès désactivé</p>
+          <p className="text-[13px] text-gray-400">Votre administrateur a désactivé l&apos;accès au CRM pour votre compte.</p>
+        </div>
+      </div>
+    )
+  }
 
   const teamRoot = await resolveTeamRoot(user.id)
   const canAssign = teamRoot === user.id  // only the actual team owner reassigns leads

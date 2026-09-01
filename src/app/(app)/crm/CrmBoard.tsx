@@ -15,6 +15,7 @@ interface Lead {
 
 const STATUS_COLORS: Record<CrmStatus, string> = {
   to_call: 'border-t-gray-300', in_progress: 'border-t-blue-300', callback: 'border-t-amber-300',
+  appointment: 'border-t-purple-300',
   interested: 'border-t-emerald-300', not_interested: 'border-t-red-300',
   converted: 'border-t-brand-400', archived: 'border-t-gray-200',
 }
