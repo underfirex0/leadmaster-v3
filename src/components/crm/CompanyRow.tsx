@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Phone, Globe, ShieldCheck, UserRound, Calendar, Banknote, MapPin, Lock, Loader2, CheckCircle2, Check, X, UserCog2 } from 'lucide-react'
+import { Phone, Globe, ShieldCheck, UserRound, Calendar, Banknote, MapPin, Lock, Loader2, CheckCircle2, Check, X, UserCog2, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CRM_STATUSES, CRM_STATUS_LABELS, CRM_STATUSES_NEEDING_DATE, type CrmStatus, FIELD_GROUPS, type FieldGroupId } from '@/lib/constants'
 
@@ -51,10 +51,12 @@ export function CompanyRow({
   const [pendingDateStatus, setPendingDateStatus] = useState<CrmStatus | null>(null)
   const [dateValue, setDateValue] = useState('')
   const [unlockingField, setUnlockingField] = useState<FieldGroupId | null>(null)
+  const [unlockError, setUnlockError] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
   const [added, setAdded] = useState(!!leadId)
   const [currentAssignee, setCurrentAssignee] = useState(assignedTo ?? null)
   const [assigning, setAssigning] = useState(false)
+  const [assignError, setAssignError] = useState<string | null>(null)
 
   const unlockedSet = new Set(unlockedFields)
   const lockedFields = ALL_METERED_FIELDS.filter(f => !unlockedSet.has(f))
@@ -92,21 +94,50 @@ export function CompanyRow({
 
   async function unlockOne(field: FieldGroupId) {
     setUnlockingField(field)
-    await fetch('/api/companies/unlock-fields', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pairs: [{ companyId: company.id, field }] }),
-    })
+    setUnlockError(null)
+    try {
+      const res = await fetch('/api/companies/unlock-fields', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pairs: [{ companyId: company.id, field }] }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setUnlockError(data.error || 'Échec du déblocage — réessayez.')
+        setUnlockingField(null)
+        return
+      }
+    } catch {
+      setUnlockError('Erreur réseau.')
+      setUnlockingField(null)
+      return
+    }
     setUnlockingField(null)
     router.refresh()
   }
 
   async function assignTo(userId: string | null) {
     setAssigning(true)
+    setAssignError(null)
+    const previousAssignee = currentAssignee
     setCurrentAssignee(userId)
     setAssignMenuOpen(false)
-    await fetch(`/api/crm/leads/${leadId}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignedTo: userId }),
-    })
+    try {
+      const res = await fetch(`/api/crm/leads/${leadId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignedTo: userId }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setCurrentAssignee(previousAssignee) // revert the optimistic update
+        setAssignError(data.error || 'Échec de l\'assignation.')
+        setAssigning(false)
+        return
+      }
+    } catch {
+      setCurrentAssignee(previousAssignee)
+      setAssignError('Erreur réseau.')
+      setAssigning(false)
+      return
+    }
     setAssigning(false)
     router.refresh()
   }
@@ -254,6 +285,17 @@ export function CompanyRow({
           )
         })}
       </div>
+
+      {unlockError && (
+        <p className="flex items-center gap-1.5 text-[11.5px] text-red-600 mb-3">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {unlockError}
+        </p>
+      )}
+      {assignError && (
+        <p className="flex items-center gap-1.5 text-[11.5px] text-red-600 mb-3">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {assignError}
+        </p>
+      )}
 
       <div className="flex items-center gap-2">
         {mode === 'manage' && company.phone_1 && unlockedSet.has('phone') && (
