@@ -1,4 +1,4 @@
-import { Wallet, Zap } from 'lucide-react'
+import { Wallet, Zap, Lock } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { CREDIT_PACKS, PLANS } from '@/lib/constants'
 import { PackButton, PlanButton } from './PurchaseButtons'
@@ -10,9 +10,22 @@ export default async function WalletPage() {
   if (!user) return null
 
   const [{ data: profile }, { data: transactions }] = await Promise.all([
-    supabaseAdmin.from('profiles').select('credit_balance, plan_id').eq('id', user.id).single(),
+    supabaseAdmin.from('profiles').select('credit_balance, plan_id, team_owner_id').eq('id', user.id).single(),
     supabaseAdmin.from('credit_transactions').select('amount, reason, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20),
   ])
+
+  if (profile?.team_owner_id) {
+    return (
+      <div>
+        <h1 className="text-xl font-bold text-gray-900 mb-1">Crédits</h1>
+        <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
+          <Lock className="w-8 h-8 text-gray-200 mx-auto mb-3" />
+          <p className="text-[13px] text-gray-500 font-medium mb-1">Géré par le propriétaire du compte</p>
+          <p className="text-[13px] text-gray-400">Votre solde actuel ({(profile.credit_balance ?? 0).toLocaleString('fr-FR')} cr) est visible en haut de l&apos;écran. Le propriétaire de votre équipe gère les achats et transferts.</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div>

@@ -2,24 +2,52 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Search, Database, Users2, Wallet, User, LogOut, UploadCloud, TrendingUp, Menu, X } from 'lucide-react'
+import { LayoutDashboard, Search, Database, Users2, Wallet, User, LogOut, UploadCloud, TrendingUp, Menu, X, ShieldCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 
-const LINKS = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/search-v2',  label: 'Recherche', icon: Search },
-  { href: '/databases', label: 'Mes sélections', icon: Database },
-  { href: '/crm',        label: 'CRM', icon: Users2 },
-  { href: '/kpis',       label: 'KPIs', icon: TrendingUp },
-  { href: '/upload',     label: 'Import', icon: UploadCloud },
-  { href: '/wallet',     label: 'Crédits', icon: Wallet },
-]
+interface NavLink { href: string; label: string; icon: typeof LayoutDashboard }
 
-export function Navbar({ balance }: { balance: number }) {
+// Builds the nav differently depending on who's looking at it — a real
+// team owner (or a solo user, same thing here) always sees everything.
+// A managed team member only sees what their owner has actually left
+// enabled, and never sees team-management or credit-purchasing tools at
+// all (those stay entirely owner-side, regardless of feature toggles) —
+// this is what makes the two roles' interfaces genuinely different
+// instead of an identical UI with some buttons quietly failing.
+function getLinks(isManagedMember: boolean, access: Record<string, boolean>): NavLink[] {
+  const links: NavLink[] = [{ href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard }]
+
+  if (!isManagedMember || access.search !== false) {
+    links.push({ href: '/search-v2', label: 'Recherche', icon: Search })
+    links.push({ href: '/databases', label: 'Mes sélections', icon: Database })
+  }
+  if (!isManagedMember || access.crm !== false) {
+    links.push({ href: '/crm', label: 'CRM', icon: Users2 })
+  }
+  if (!isManagedMember) {
+    // Team-wide performance overview — a management tool, not something
+    // an individual commercial needs or should see other members' numbers in.
+    links.push({ href: '/kpis', label: 'KPIs', icon: TrendingUp })
+  }
+  if (!isManagedMember || access.data_upload !== false) {
+    links.push({ href: '/upload', label: 'Import', icon: UploadCloud })
+  }
+  if (!isManagedMember) {
+    // Purchasing/subscription management — members receive credits via
+    // an internal transfer from their owner, they never buy their own.
+    links.push({ href: '/wallet', label: 'Crédits', icon: Wallet })
+  }
+  return links
+}
+
+export function Navbar({
+  balance, isManagedMember = false, access = {},
+}: { balance: number; isManagedMember?: boolean; access?: Record<string, boolean> }) {
   const pathname = usePathname()
   const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const links = getLinks(isManagedMember, access)
 
   async function handleLogout() {
     const supabase = createClient()
@@ -37,7 +65,7 @@ export function Navbar({ balance }: { balance: number }) {
           </button>
           <span className="font-bold text-brand-600 text-[15px]">LeadMaster</span>
           <div className="hidden sm:flex items-center gap-1">
-            {LINKS.map(l => {
+            {links.map(l => {
               const active = pathname?.startsWith(l.href)
               const Icon = l.icon
               return (
@@ -51,6 +79,11 @@ export function Navbar({ balance }: { balance: number }) {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {isManagedMember && (
+            <span className="hidden sm:flex items-center gap-1 text-[11px] font-semibold text-gray-400 border border-gray-200 px-2 py-1 rounded-pill">
+              <ShieldCheck className="w-3 h-3" /> Compte membre
+            </span>
+          )}
           <span className="text-[12.5px] sm:text-[13px] font-bold text-brand-700 bg-brand-50 px-2.5 sm:px-3 py-1.5 rounded-pill">
             {balance.toLocaleString('fr-FR')} cr
           </span>
@@ -61,7 +94,12 @@ export function Navbar({ balance }: { balance: number }) {
 
       {mobileOpen && (
         <div className="sm:hidden border-t border-gray-100 px-4 py-2">
-          {LINKS.map(l => {
+          {isManagedMember && (
+            <div className="flex items-center gap-1 text-[11px] font-semibold text-gray-400 py-1.5">
+              <ShieldCheck className="w-3 h-3" /> Compte membre
+            </div>
+          )}
+          {links.map(l => {
             const active = pathname?.startsWith(l.href)
             const Icon = l.icon
             return (

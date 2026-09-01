@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Check, X, Send } from 'lucide-react'
+import { Loader2, Check, X, Send, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const FEATURES = [
@@ -16,6 +16,7 @@ export function TeamMemberCard({
 }: { member: { id: string; full_name: string | null; email: string; credit_balance: number; access: Record<string, boolean> } }) {
   const router = useRouter()
   const [pendingFeature, setPendingFeature] = useState<string | null>(null)
+  const [featureError, setFeatureError] = useState<string | null>(null)
   const [transferOpen, setTransferOpen] = useState(false)
   const [transferAmount, setTransferAmount] = useState('')
   const [transferLoading, setTransferLoading] = useState(false)
@@ -24,10 +25,23 @@ export function TeamMemberCard({
 
   async function toggleFeature(feature: string, current: boolean) {
     setPendingFeature(feature)
-    await fetch(`/api/team/members/${member.id}/access`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ feature, enabled: !current }),
-    })
+    setFeatureError(null)
+    try {
+      const res = await fetch(`/api/team/members/${member.id}/access`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feature, enabled: !current }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setFeatureError(data.error || "Échec de la mise à jour — réessayez.")
+        setPendingFeature(null)
+        return
+      }
+    } catch {
+      setFeatureError('Erreur réseau — réessayez.')
+      setPendingFeature(null)
+      return
+    }
     setPendingFeature(null)
     router.refresh()
   }
@@ -68,7 +82,7 @@ export function TeamMemberCard({
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-1.5 mb-3">
+      <div className="flex flex-wrap gap-1.5 mb-1.5">
         {FEATURES.map(f => {
           const enabled = member.access[f.key] !== false
           return (
@@ -81,6 +95,9 @@ export function TeamMemberCard({
           )
         })}
       </div>
+      {featureError && (
+        <p className="flex items-center gap-1 text-[11px] text-red-600 mb-3"><AlertCircle className="w-3 h-3 shrink-0" /> {featureError}</p>
+      )}
 
       {transferOpen ? (
         <form onSubmit={handleTransfer} className="flex items-center gap-1.5">

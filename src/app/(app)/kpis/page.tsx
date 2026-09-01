@@ -4,13 +4,27 @@ import { fetchInChunks } from '@/lib/chunked'
 import { resolveTeamRoot } from '@/lib/team'
 import { CRM_STATUSES, CRM_STATUS_LABELS, type CrmStatus } from '@/lib/constants'
 import { StatusDonut, TrendBarChart, AssigneeBarChart } from '@/components/dashboard/KpiCharts'
-import { TrendingUp, Target, Calendar, Users2, Phone } from 'lucide-react'
+import { TrendingUp, Target, Calendar, Users2, Phone, Lock } from 'lucide-react'
 import Link from 'next/link'
 
 export default async function KpisPage() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
+
+  const { data: selfProfile } = await supabaseAdmin.from('profiles').select('team_owner_id').eq('id', user.id).single()
+  if (selfProfile?.team_owner_id) {
+    return (
+      <div>
+        <h1 className="text-xl font-bold text-gray-900 mb-1">KPIs</h1>
+        <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
+          <Lock className="w-8 h-8 text-gray-200 mx-auto mb-3" />
+          <p className="text-[13px] text-gray-500 font-medium mb-1">Réservé au propriétaire du compte</p>
+          <p className="text-[13px] text-gray-400">Cette vue d&apos;ensemble d&apos;équipe n&apos;est visible que par le propriétaire.</p>
+        </div>
+      </div>
+    )
+  }
 
   const teamRoot = await resolveTeamRoot(user.id)
 
