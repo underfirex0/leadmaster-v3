@@ -439,16 +439,72 @@ export function SearchWizardClient() {
                 )
               })}
             </div>
+
+            {(() => {
+              // Smart suggestion: flag selected (non-basic) fields with genuinely
+              // low coverage for THIS exact selection, and show what deselecting
+              // them would actually save — computed from the real live numbers,
+              // not a guess.
+              const lowCoverage = [...selectedFields].filter(f => f !== 'basic' && (fieldCoverage[f] ?? 100) < 35)
+              if (!lowCoverage.length) return null
+              return (
+                <div className="mt-4 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3.5">
+                  <div className="flex items-start gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-[12.5px] text-amber-800 font-semibold mb-1.5">
+                        {lowCoverage.length === 1 ? 'Ce champ est rarement disponible pour cette sélection' : 'Ces champs sont rarement disponibles pour cette sélection'}
+                      </p>
+                      <div className="space-y-1.5">
+                        {lowCoverage.map(f => {
+                          const coverage = fieldCoverage[f] ?? 0
+                          const estimatedSaving = Math.round((coverage / 100) * maxCompanies * FIELD_GROUPS[f].cost)
+                          return (
+                            <div key={f} className="flex items-center justify-between text-[12px] text-amber-700">
+                              <span>{FIELD_GROUPS[f].label} — disponible pour seulement {coverage}%</span>
+                              <button onClick={() => toggleField(f as FieldGroupId)}
+                                className="font-semibold underline hover:no-underline shrink-0 ml-2">
+                                Retirer (−{estimatedSaving.toLocaleString('fr-FR')} cr)
+                              </button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
+
             <div className="mt-5">
-              <p className="text-[12px] font-bold text-gray-500 uppercase tracking-wide mb-2">Nombre d&apos;entreprises max</p>
-              <div className="flex flex-wrap gap-2">
-                {[10, 25, 50, 100, 500, 1000, 5000].map(n => (
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[12px] font-bold text-gray-500 uppercase tracking-wide">Nombre d&apos;entreprises max</p>
+                <p className="text-[11.5px] text-gray-400">Maximum disponible : <span className="font-semibold text-gray-600">{(liveCount ?? 0).toLocaleString('fr-FR')}</span></p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {[10, 25, 50, 100, 500, 1000, 5000].filter(n => n <= (liveCount ?? Infinity) || n === 10).map(n => (
                   <button key={n} onClick={() => setMaxCompanies(n)}
                     className={cn('px-3.5 py-1.5 rounded-lg text-[13px] font-semibold border transition-colors',
                       maxCompanies === n ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 text-gray-600 hover:border-gray-300')}>
                     {n.toLocaleString('fr-FR')}
                   </button>
                 ))}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[12.5px] text-gray-400">ou</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={liveCount ?? undefined}
+                    placeholder="nombre précis"
+                    value={![10, 25, 50, 100, 500, 1000, 5000].includes(maxCompanies) ? maxCompanies : ''}
+                    onChange={e => {
+                      const raw = parseInt(e.target.value, 10)
+                      if (!raw || raw < 1) { setMaxCompanies(1); return }
+                      setMaxCompanies(liveCount ? Math.min(raw, liveCount) : raw)
+                    }}
+                    className="w-28 px-2.5 py-1.5 rounded-lg border border-gray-200 text-[13px] font-semibold text-gray-700 focus:outline-none focus:border-brand-400"
+                  />
+                </div>
               </div>
             </div>
           </div>

@@ -17,16 +17,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Accès au CRM désactivé pour votre compte. Contactez votre administrateur.' }, { status: 403 })
   }
 
-  const { leadIds, assigneeId, roundRobinAssigneeIds } = await request.json() as {
-    leadIds: string[]; assigneeId?: string | null; roundRobinAssigneeIds?: string[]
+  const { leadIds, assigneeId, roundRobinAssigneeIds, count } = await request.json() as {
+    leadIds?: string[]; assigneeId?: string | null; roundRobinAssigneeIds?: string[]; count?: number
   }
-  if (!leadIds?.length) return NextResponse.json({ error: 'Aucun lead sélectionné' }, { status: 400 })
 
   const teamRoot = await resolveTeamRoot(user.id)
   if (teamRoot !== user.id) return NextResponse.json({ error: 'Seul le propriétaire peut assigner des leads' }, { status: 403 })
 
+  let targetIds: string[]
+  if (count && count > 0) {
+    // Smart mode: no manual selection needed — auto-pick the oldest N
+    // still-unassigned leads (first in, first distributed) instead of
+    // requiring the owner to check boxes one by one.
+    const { data: unassigned } = await supabaseAdmin.from('crm_leads')
+      .select('id').eq('owner_account_id', teamRoot).is('assigned_to', null)
+      .order('created_at', { ascending: true }).limit(count)
+    targetIds = (unassigned ?? []).map(l => l.id)
+  } else {
+    targetIds = leadIds ?? []
+  }
+  if (!targetIds.length) return NextResponse.json({ error: 'Aucun lead à assigner' }, { status: 400 })
+
   // Verify every lead actually belongs to this team before touching anything.
-  const { data: leads } = await supabaseAdmin.from('crm_leads').select('id, owner_account_id').in('id', leadIds)
+  const { data: leads } = await supabaseAdmin.from('crm_leads').select('id, owner_account_id').in('id', targetIds)
   const validIds = (leads ?? []).filter(l => l.owner_account_id === teamRoot).map(l => l.id)
   if (!validIds.length) return NextResponse.json({ error: 'Aucun lead valide' }, { status: 400 })
 

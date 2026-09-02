@@ -11,13 +11,16 @@ export interface CrmLeadItem {
 }
 
 export function CrmLeadsClient({
-  items, assigneeOptions, canAssign,
-}: { items: CrmLeadItem[]; assigneeOptions: AssigneeOption[]; canAssign: boolean }) {
+  items, assigneeOptions, canAssign, unassignedCount,
+}: { items: CrmLeadItem[]; assigneeOptions: AssigneeOption[]; canAssign: boolean; unassignedCount: number }) {
   const router = useRouter()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [manualAssignee, setManualAssignee] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [smartCount, setSmartCount] = useState('')
+  const [smartLoading, setSmartLoading] = useState(false)
+  const [smartResult, setSmartResult] = useState<string | null>(null)
 
   // Selection is keyed by company_id (what CompanyRow reports), mapped
   // back to lead ids for the actual assignment call.
@@ -62,8 +65,41 @@ export function CrmLeadsClient({
     router.refresh()
   }
 
+  async function assignSmartBatch() {
+    const n = parseInt(smartCount, 10)
+    if (!n || n <= 0) return
+    setSmartLoading(true)
+    setSmartResult(null)
+    const res = await fetch('/api/crm/leads/assign', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ count: n, roundRobinAssigneeIds: assigneeOptions.map(a => a.id) }),
+    })
+    const data = await res.json()
+    setSmartLoading(false)
+    if (!res.ok) { setSmartResult(data.error); return }
+    setSmartResult(`${data.assigned} lead(s) assigné(s) et répartis.`)
+    setSmartCount('')
+    router.refresh()
+  }
+
   return (
     <div className="pb-20">
+      {canAssign && assigneeOptions.length > 1 && unassignedCount > 0 && (
+        <div className="flex flex-wrap items-center gap-2 bg-brand-50 border border-brand-100 rounded-xl px-4 py-3 mb-4">
+          <Shuffle className="w-4 h-4 text-brand-500 shrink-0" />
+          <span className="text-[12.5px] text-brand-800 font-medium">
+            {unassignedCount} lead{unassignedCount > 1 ? 's' : ''} non assigné{unassignedCount > 1 ? 's' : ''} —
+          </span>
+          <input type="number" min={1} max={unassignedCount} value={smartCount} onChange={e => setSmartCount(e.target.value)}
+            placeholder="nombre"
+            className="w-20 px-2 py-1.5 rounded-lg border border-brand-200 text-[12.5px] font-semibold text-gray-700 focus:outline-none focus:border-brand-400" />
+          <button onClick={assignSmartBatch} disabled={smartLoading || !smartCount}
+            className="px-3 py-1.5 bg-brand-600 text-white rounded-lg text-[12.5px] font-semibold hover:bg-brand-700 disabled:opacity-50 flex items-center gap-1.5">
+            {smartLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null} Répartir automatiquement
+          </button>
+          {smartResult && <span className="text-[12px] text-brand-700 font-medium">{smartResult}</span>}
+        </div>
+      )}
       <div className="space-y-2">
         {items.map(item => (
           <CompanyRow

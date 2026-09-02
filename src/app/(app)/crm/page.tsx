@@ -34,14 +34,16 @@ export default async function CrmPage({
   const teamRoot = await resolveTeamRoot(user.id)
   const canAssign = teamRoot === user.id  // only the actual team owner reassigns leads
 
-  // Every lead the team has actually added — shared pool, scoped by
-  // owner_account_id (the team root), not by whoever personally added
-  // it. This is the ONLY place status/pipeline management happens.
-  const { data: leads } = await supabaseAdmin
+  // The owner sees the whole team's shared pool. A member only sees
+  // leads that have actually been assigned to them — not everyone
+  // else's work too. An unassigned lead is invisible to members until
+  // the owner assigns it to someone.
+  let leadsQuery = supabaseAdmin
     .from('crm_leads')
     .select('id, company_id, status, priority, source_query_name, callback_date, assigned_to, created_at')
     .eq('owner_account_id', teamRoot)
-    .order('created_at', { ascending: false })
+  if (!canAssign) leadsQuery = leadsQuery.eq('assigned_to', user.id)
+  const { data: leads } = await leadsQuery.order('created_at', { ascending: false })
 
   // Team roster for the assignment dropdown — the owner plus everyone
   // they've created as a member.
@@ -58,11 +60,11 @@ export default async function CrmPage({
     return (
       <div>
         <h1 className="text-xl font-bold text-gray-900 mb-1">CRM</h1>
-        <p className="text-[13px] text-gray-400 mb-6">Suivez vos prospects, filtrez et changez leur statut.</p>
+        <p className="text-[13px] text-gray-400 mb-6">{canAssign ? 'Suivez vos prospects, filtrez et changez leur statut. Pipeline partagé avec votre équipe.' : 'Vos prospects assignés — filtrez et changez leur statut.'}</p>
         <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
           <Database className="w-8 h-8 text-gray-200 mx-auto mb-3" />
-          <p className="text-[13px] text-gray-400 mb-4">Aucun lead ajouté pour le moment.</p>
-          <Link href="/databases" className="text-brand-600 font-semibold text-[13px]">Parcourir vos sélections →</Link>
+          <p className="text-[13px] text-gray-400 mb-4">{canAssign ? 'Aucun lead ajouté pour le moment.' : "Aucun lead ne vous a été assigné pour le moment."}</p>
+          {canAssign && <Link href="/databases" className="text-brand-600 font-semibold text-[13px]">Parcourir vos sélections →</Link>}
         </div>
       </div>
     )
@@ -137,15 +139,17 @@ export default async function CrmPage({
     <div>
       <h1 className="text-xl font-bold text-gray-900 mb-1">CRM</h1>
       <p className="text-[13px] text-gray-400 mb-6">
-        Suivez vos prospects, filtrez et changez leur statut.
-        {assigneeOptions.length > 1 && ' Pipeline partagé avec votre équipe.'}
+        {canAssign
+          ? <>Suivez vos prospects, filtrez et changez leur statut.{assigneeOptions.length > 1 && ' Pipeline partagé avec votre équipe.'}</>
+          : 'Vos prospects assignés — filtrez et changez leur statut.'}
       </p>
 
       <FiltersBar statusCounts={statusCounts} cities={cities} sectors={sectors} sources={sources} />
 
       <p className="text-[12px] text-gray-400 mb-2">{filtered.length.toLocaleString('fr-FR')} leads · page {page}/{totalPages}</p>
 
-      <CrmLeadsClient items={items} assigneeOptions={assigneeOptions} canAssign={canAssign} />
+      <CrmLeadsClient items={items} assigneeOptions={assigneeOptions} canAssign={canAssign}
+        unassignedCount={leads.filter(l => !l.assigned_to).length} />
 
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-3 mt-6">
