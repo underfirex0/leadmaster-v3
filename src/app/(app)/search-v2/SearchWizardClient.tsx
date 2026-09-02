@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import {
   MapPin, Building2, Users2, Wallet, CheckCircle2, ChevronRight, ChevronLeft,
   Loader2, ShieldCheck, UserRound, Calendar, Banknote, Sparkles, ArrowRight,
-  Tag, ListChecks, Phone, Globe,
+  Tag, ListChecks, Phone, Globe, Minus, Plus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { FIELD_GROUPS, EFFECTIF_TRANCHES, CAPITAL_TRANCHES, type FieldGroupId } from '@/lib/constants'
@@ -477,35 +477,43 @@ export function SearchWizardClient() {
             })()}
 
             <div className="mt-5">
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-3">
                 <p className="text-[12px] font-bold text-gray-500 uppercase tracking-wide">Nombre d&apos;entreprises max</p>
                 <p className="text-[11.5px] text-gray-400">Maximum disponible : <span className="font-semibold text-gray-600">{(liveCount ?? 0).toLocaleString('fr-FR')}</span></p>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {[10, 25, 50, 100, 500, 1000, 5000].filter(n => n <= (liveCount ?? Infinity) || n === 10).map(n => (
-                  <button key={n} onClick={() => setMaxCompanies(n)}
-                    className={cn('px-3.5 py-1.5 rounded-lg text-[13px] font-semibold border transition-colors',
-                      maxCompanies === n ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-200 text-gray-600 hover:border-gray-300')}>
-                    {n.toLocaleString('fr-FR')}
-                  </button>
-                ))}
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[12.5px] text-gray-400">ou</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={liveCount ?? undefined}
-                    placeholder="nombre précis"
-                    value={![10, 25, 50, 100, 500, 1000, 5000].includes(maxCompanies) ? maxCompanies : ''}
-                    onChange={e => {
-                      const raw = parseInt(e.target.value, 10)
-                      if (!raw || raw < 1) { setMaxCompanies(1); return }
-                      setMaxCompanies(liveCount ? Math.min(raw, liveCount) : raw)
-                    }}
-                    className="w-28 px-2.5 py-1.5 rounded-lg border border-gray-200 text-[13px] font-semibold text-gray-700 focus:outline-none focus:border-brand-400"
-                  />
-                </div>
-              </div>
+              {(() => {
+                const cap = Math.max(1, liveCount ?? 1)
+                function clamp(n: number) { return Math.min(cap, Math.max(1, n)) }
+                // Step scales with the range — dragging across a 50,000-max
+                // slider one unit at a time would be unusable.
+                const step = cap > 2000 ? 50 : cap > 200 ? 10 : 1
+                return (
+                  <div className="flex items-center gap-3">
+                    <button type="button" onClick={() => setMaxCompanies(m => clamp(m - step))}
+                      className="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <input
+                      type="range" min={1} max={cap} step={1} value={Math.min(maxCompanies, cap)}
+                      onChange={e => setMaxCompanies(clamp(parseInt(e.target.value, 10)))}
+                      className="flex-1 accent-brand-600"
+                    />
+                    <button type="button" onClick={() => setMaxCompanies(m => clamp(m + step))}
+                      className="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                    <input
+                      type="number" min={1} max={cap}
+                      value={maxCompanies}
+                      onChange={e => {
+                        const raw = parseInt(e.target.value, 10)
+                        setMaxCompanies(isNaN(raw) ? 1 : clamp(raw))
+                      }}
+                      className="w-24 shrink-0 px-2.5 py-1.5 rounded-lg border border-gray-200 text-[13px] font-bold text-center text-gray-800 focus:outline-none focus:border-brand-400"
+                    />
+                  </div>
+                )
+              })()}
             </div>
           </div>
         )}

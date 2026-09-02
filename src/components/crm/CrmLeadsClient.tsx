@@ -65,14 +65,24 @@ export function CrmLeadsClient({
     router.refresh()
   }
 
+  const [smartTargets, setSmartTargets] = useState<Set<string>>(new Set(assigneeOptions.map(a => a.id)))
+
+  function toggleSmartTarget(id: string) {
+    setSmartTargets(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
   async function assignSmartBatch() {
     const n = parseInt(smartCount, 10)
-    if (!n || n <= 0) return
+    if (!n || n <= 0 || smartTargets.size === 0) return
     setSmartLoading(true)
     setSmartResult(null)
     const res = await fetch('/api/crm/leads/assign', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ count: n, roundRobinAssigneeIds: assigneeOptions.map(a => a.id) }),
+      body: JSON.stringify({ count: n, roundRobinAssigneeIds: [...smartTargets] }),
     })
     const data = await res.json()
     setSmartLoading(false)
@@ -85,19 +95,33 @@ export function CrmLeadsClient({
   return (
     <div className="pb-20">
       {canAssign && assigneeOptions.length > 1 && unassignedCount > 0 && (
-        <div className="flex flex-wrap items-center gap-2 bg-brand-50 border border-brand-100 rounded-xl px-4 py-3 mb-4">
-          <Shuffle className="w-4 h-4 text-brand-500 shrink-0" />
-          <span className="text-[12.5px] text-brand-800 font-medium">
-            {unassignedCount} lead{unassignedCount > 1 ? 's' : ''} non assigné{unassignedCount > 1 ? 's' : ''} —
-          </span>
-          <input type="number" min={1} max={unassignedCount} value={smartCount} onChange={e => setSmartCount(e.target.value)}
-            placeholder="nombre"
-            className="w-20 px-2 py-1.5 rounded-lg border border-brand-200 text-[12.5px] font-semibold text-gray-700 focus:outline-none focus:border-brand-400" />
-          <button onClick={assignSmartBatch} disabled={smartLoading || !smartCount}
-            className="px-3 py-1.5 bg-brand-600 text-white rounded-lg text-[12.5px] font-semibold hover:bg-brand-700 disabled:opacity-50 flex items-center gap-1.5">
-            {smartLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null} Répartir automatiquement
-          </button>
-          {smartResult && <span className="text-[12px] text-brand-700 font-medium">{smartResult}</span>}
+        <div className="bg-brand-50 border border-brand-100 rounded-xl px-4 py-3 mb-4">
+          <div className="flex flex-wrap items-center gap-2 mb-2.5">
+            <Shuffle className="w-4 h-4 text-brand-500 shrink-0" />
+            <span className="text-[12.5px] text-brand-800 font-medium">
+              {unassignedCount} lead{unassignedCount > 1 ? 's' : ''} non assigné{unassignedCount > 1 ? 's' : ''} —
+            </span>
+            <input type="number" min={1} max={unassignedCount} value={smartCount} onChange={e => setSmartCount(e.target.value)}
+              placeholder="nombre"
+              className="w-20 px-2 py-1.5 rounded-lg border border-brand-200 text-[12.5px] font-semibold text-gray-700 focus:outline-none focus:border-brand-400" />
+            <button onClick={assignSmartBatch} disabled={smartLoading || !smartCount || smartTargets.size === 0}
+              className="px-3 py-1.5 bg-brand-600 text-white rounded-lg text-[12.5px] font-semibold hover:bg-brand-700 disabled:opacity-50 flex items-center gap-1.5">
+              {smartLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null} Répartir automatiquement
+            </button>
+            {smartResult && <span className="text-[12px] text-brand-700 font-medium">{smartResult}</span>}
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-brand-600 font-medium mr-1">Entre :</span>
+            {assigneeOptions.map(a => (
+              <button key={a.id} onClick={() => toggleSmartTarget(a.id)}
+                className={`text-[11.5px] font-semibold px-2.5 py-1 rounded-pill border transition-colors ${
+                  smartTargets.has(a.id) ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-500 border-gray-200 hover:border-brand-200'
+                }`}>
+                {a.name}
+              </button>
+            ))}
+            {smartTargets.size === 0 && <span className="text-[11px] text-red-500 ml-1">Choisissez au moins une personne</span>}
+          </div>
         </div>
       )}
       <div className="space-y-2">

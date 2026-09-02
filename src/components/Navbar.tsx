@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { LayoutDashboard, Search, Database, Users2, Wallet, User, LogOut, UploadCloud, TrendingUp, Menu, X, ShieldCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -63,7 +64,9 @@ export function Navbar({
           <button onClick={() => setMobileOpen(o => !o)} className="sm:hidden text-gray-500">
             {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
-          <span className="font-bold text-brand-600 text-[15px]">LeadMaster</span>
+          <Link href="/dashboard" className="flex items-center">
+            <Image src="/logo.png" alt="LeadMaster" width={121} height={50} priority className="h-6 w-auto" />
+          </Link>
           <div className="hidden sm:flex items-center gap-1">
             {links.map(l => {
               const active = pathname?.startsWith(l.href)

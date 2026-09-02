@@ -59,7 +59,6 @@ export function CompanyRow({
   const [assignError, setAssignError] = useState<string | null>(null)
 
   const unlockedSet = new Set(unlockedFields)
-  const lockedFields = ALL_METERED_FIELDS.filter(f => !unlockedSet.has(f))
 
   async function changeStatus(s: CrmStatus, withDate?: string) {
     if (CRM_STATUSES_NEEDING_DATE.includes(s) && !withDate) {
@@ -252,21 +251,23 @@ export function CompanyRow({
       )}
 
       <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1 mb-3">
-        {unlockedFields.filter(f => f !== 'basic').map(f => {
+        {ALL_METERED_FIELDS.map(f => {
           const d = FIELD_DISPLAY[f]
           if (!d) return null
-          const Icon = d.icon
-          return (
-            <div key={f} className="flex items-center gap-1.5 text-[12px] text-gray-600">
-              <Icon className="w-3 h-3 text-gray-300 shrink-0" />
-              <span className="text-gray-400">{FIELD_GROUPS[f].label}:</span>
-              <span className="font-medium">{d.render(company)}</span>
-            </div>
-          )
-        })}
-        {lockedFields.map(f => {
-          const d = FIELD_DISPLAY[f]
-          const hasData = d ? d.hasData(company) : false
+          const isUnlocked = unlockedSet.has(f)
+
+          if (isUnlocked) {
+            const Icon = d.icon
+            return (
+              <div key={f} className="flex items-center gap-1.5 text-[12px] text-gray-600">
+                <Icon className="w-3 h-3 text-gray-300 shrink-0" />
+                <span className="text-gray-400">{FIELD_GROUPS[f].label}:</span>
+                <span className="font-medium">{d.render(company)}</span>
+              </div>
+            )
+          }
+
+          const hasData = d.hasData(company)
           if (!hasData) {
             return (
               <div key={f} className="flex items-center gap-1.5 text-[12px] text-gray-300">
