@@ -109,7 +109,7 @@ export async function getAvailableCities(): Promise<{ city: string; count: numbe
 // your results") — from taxonomy_catalog, weighted by company_count
 // across whichever taxonomy ids are selected. No live sampling. ──
 export async function getFieldCoverage(taxonomyIds: number[]): Promise<Record<FieldGroupId, number>> {
-  const cols = 'taxonomy_id,company_count,phone_coverage,email_coverage,website_coverage,ice_coverage,director_coverage,effectif_coverage,capital_coverage'
+  const cols = 'taxonomy_id,company_count,phone_coverage,email_coverage,website_coverage,address_coverage,ice_coverage,director_coverage,effectif_coverage,capital_coverage'
   let q = supabaseAdmin.from('taxonomy_catalog').select(cols)
   if (taxonomyIds.length) q = q.in('taxonomy_id', taxonomyIds)
   const { data, error } = await q
